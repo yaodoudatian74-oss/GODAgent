@@ -30,23 +30,29 @@ fetch() { # url out
 echo "==> Building the standalone web bundle"
 ( cd ../web && VITE_STANDALONE=1 VITE_SINGLEFILE=1 npx vite build --outDir dist-artifact >/dev/null )
 
-echo "==> Staging assets"
-rm -rf assets classes && mkdir -p assets/www/computer-apps classes
+echo "==> Staging assets + launcher icon"
+rm -rf assets classes && mkdir -p assets/www/computer-apps classes res/mipmap
 cp ../web/dist-artifact/index.html assets/www/index.html
 cp ../web/dist-artifact/computer-apps/* assets/www/computer-apps/
+cp ../web/public/icons/icon-192.png res/mipmap/ic_launcher.png
 
 echo "==> Compiling + dexing MainActivity"
 javac -source 8 -target 8 -classpath android.jar -d classes src/com/godagent/app/MainActivity.java 2>/dev/null
 java -cp dx.jar com.android.dx.command.Main --dex --min-sdk-version=21 --output=classes.dex classes/
 
-echo "==> Generating binary AndroidManifest.xml"
+echo "==> Generating binary AndroidManifest.xml + resources.arsc (icon)"
 python3 mkmanifest.py AndroidManifest.xml
+python3 mkarsc.py resources.arsc
 
-echo "==> Assembling APK"
+echo "==> Assembling APK (arsc + icon stored uncompressed)"
 python3 - <<'PY'
 import zipfile, os
 z = zipfile.ZipFile('GODAgent.apk', 'w', zipfile.ZIP_DEFLATED)
-z.write('AndroidManifest.xml'); z.write('classes.dex')
+z.write('AndroidManifest.xml')
+z.writestr(zipfile.ZipInfo('resources.arsc'), open('resources.arsc','rb').read(), compress_type=zipfile.ZIP_STORED)
+z.write('classes.dex')
+zi = zipfile.ZipInfo('res/mipmap/ic_launcher.png'); zi.compress_type = zipfile.ZIP_STORED
+z.writestr(zi, open('res/mipmap/ic_launcher.png','rb').read())
 for r,_,fs in os.walk('assets'):
     for f in fs: p=os.path.join(r,f); z.write(p, p.replace(os.sep,'/'))
 z.close()

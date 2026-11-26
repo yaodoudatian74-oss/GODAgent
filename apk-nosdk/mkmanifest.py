@@ -18,6 +18,7 @@ ATTRS = [
     ("usesCleartextTraffic", 0x0101064a),
     ("name", 0x01010003),
     ("exported", 0x01010010),
+    ("icon", 0x01010002),
 ]
 ATTR_NAMES = [a[0] for a in ATTRS]
 RES_IDS = [a[1] for a in ATTRS]
@@ -69,6 +70,10 @@ def i_attr(name, value, ns=True):
 
 def b_attr(name, value, ns=True):
     return attr(name, TYPE_INT_BOOLEAN, BOOL_TRUE if value else 0, ns=ns)
+
+TYPE_REFERENCE = 0x01
+def ref_attr(name, res_id, ns=True):
+    return attr(name, TYPE_REFERENCE, res_id, ns=ns)
 
 # ---- string pool ----
 def build_string_pool():
@@ -138,6 +143,7 @@ parts.append(elem_end("uses-sdk"))
 app_attrs = [
     b_attr("usesCleartextTraffic", True),
     b_attr("hasCode", True),
+    ref_attr("icon", 0x7F010000),
     s_attr("label", "GODAgent"),
 ]
 parts.append(elem_start("application", app_attrs))
