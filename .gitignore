@@ -17,3 +17,4 @@ web/android/capacitor-cordova-android-plugins/
 *.keystore
 GODAgent.apk
 aligned.apk
+web/dist-artifact/

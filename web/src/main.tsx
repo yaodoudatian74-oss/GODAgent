@@ -6,7 +6,7 @@ import { actions } from './store';
 
 actions.boot();
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && !(import.meta as any).env?.VITE_SINGLEFILE) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 
