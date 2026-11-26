@@ -1,0 +1,17 @@
+{
+  "name": "godagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GODAgent — a faithful recreation of the Grok Bot experience (persistent AI teammates with avatars, memory, computer, routines, skills).",
+  "scripts": {
+    "install:all": "npm install && npm --prefix web install && npm --prefix server install",
+    "dev": "concurrently -k -n web,server -c cyan,magenta \"npm --prefix web run dev\" \"npm --prefix server run dev\"",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix server run start",
+    "test": "npm --prefix server run test && npm --prefix web run test:e2e"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
