@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>万能AI社員</title>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --panel: #ffffff;
+    --text: #1d2433;
+    --muted: #6b7385;
+    --accent: #2b6cb0;
+    --accent-text: #ffffff;
+    --border: #dde2ea;
+    --bubble-user: #2b6cb0;
+    --bubble-user-text: #ffffff;
+    --bubble-bot: #eef1f6;
+    --radius: 12px;
+    --gutter: 16px;
+    --font: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c;
+      --panel: #1a1f2a;
+      --text: #e6eaf2;
+      --muted: #8b93a7;
+      --accent: #5b9bd5;
+      --accent-text: #0b1020;
+      --border: #2a3140;
+      --bubble-user: #5b9bd5;
+      --bubble-user-text: #0b1020;
+      --bubble-bot: #242b3a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151c;
+    --panel: #1a1f2a;
+    --text: #e6eaf2;
+    --muted: #8b93a7;
+    --accent: #5b9bd5;
+    --accent-text: #0b1020;
+    --border: #2a3140;
+    --bubble-user: #5b9bd5;
+    --bubble-user-text: #0b1020;
+    --bubble-bot: #242b3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.6;
+    overflow: hidden;
+  }
+  .app { display: flex; height: 100%; }
+  aside {
+    width: 240px; flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: var(--gutter);
+    gap: 12px;
+  }
+  aside h2 { font-size: 13px; color: var(--muted); margin: 0; font-weight: 600; letter-spacing: .04em; }
+  .bot-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+  .bot-item {
+    text-align: left; border: 1px solid transparent; background: none;
+    color: var(--text); padding: 10px 12px; border-radius: var(--radius);
+    cursor: pointer; font: inherit;
+  }
+  .bot-item:hover { background: var(--bg); }
+  .bot-item[aria-selected="true"] { border-color: var(--accent); background: var(--bg); }
+  .bot-item .role { display: block; font-size: 12px; color: var(--muted); }
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  header {
+    padding: 12px var(--gutter);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  header .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header .status { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  #messages {
+    flex: 1; overflow-y: auto;
+    padding: var(--gutter);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: var(--radius); white-space: pre-wrap; word-break: break-word; }
+  .msg.user { align-self: flex-end; background: var(--bubble-user); color: var(--bubble-user-text); }
+  .msg.bot { align-self: flex-start; background: var(--bubble-bot); }
+  .msg time { display: block; font-size: 11px; opacity: .7; margin-top: 4px; }
+  .empty { margin: auto; color: var(--muted); text-align: center; }
+  form {
+    display: flex; gap: 8px;
+    padding: var(--gutter);
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+  }
+  textarea {
+    flex: 1; resize: none; min-height: 44px; max-height: 160px;
+    padding: 10px 12px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font: inherit;
+  }
+  button.send, button.theme {
+    border: none; border-radius: var(--radius); padding: 0 18px; min-height: 44px;
+    background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.theme { background: none; color: var(--text); border: 1px solid var(--border); padding: 0 12px; font-weight: 400; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, textarea:focus-visible, .bot-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* 狭い画面（スマートフォン）: サイドバーを上部へ */
+  @media (max-width: 720px) {
+    .app { flex-direction: column; }
+    aside { width: 100%; flex-direction: row; align-items: center; padding: 10px var(--gutter); overflow-x: auto; }
+    aside h2 { display: none; }
+    .bot-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
+    .bot-item .role { display: none; }
+    .msg { max-width: 92%; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h2>AI社員</h2>
+    <div class="bot-list" role="listbox" aria-label="AI社員一覧" id="botList"></div>
+  </aside>
+  <main>
+    <header>
+      <span class="title" id="botTitle"></span>
+      <span style="display:flex;gap:8px;align-items:center">
+        <span class="status" id="saveStatus" aria-live="polite">未保存</span>
+        <button class="theme" id="themeBtn" type="button">テーマ切替</button>
+      </span>
+    </header>
+    <div id="messages" aria-live="polite"></div>
+    <form id="composer">
+      <textarea id="input" rows="1" placeholder="社長、ご依頼内容を入力してください" aria-label="メッセージ入力"></textarea>
+      <button class="send" type="submit" id="sendBtn">送信</button>
+    </form>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "godagent.state.v1";
+  var AUTOSAVE_MS = 60 * 1000;
+  var NOT_CONNECTED_REPLY =
+    "社長、ご依頼を確認いたしました。ただいま応答エンジンが未接続のため、回答を生成できません。" +
+    "推論エンジンを接続すると、こちらでご回答いたします。";
+
+  var DEFAULT_BOTS = [
+    { id: "vp", name: "副社長", role: "全体の調整・担当チーム編成" },
+    { id: "dev", name: "アプリ開発", role: "アプリの設計・実装" },
+    { id: "qa", name: "品質管理", role: "テストと品質確認" }
+  ];
+
+  var state = {
+    bots: DEFAULT_BOTS,
+    activeBotId: "vp",
+    messages: {},   // botId -> [{role, text, ts}]
+    dirty: false,
+    lastSaved: null
+  };
+
+  // ---- 保存（localStorage は使えない環境もあるため try/catch で囲む） ----
+  function loadState() {
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var saved = JSON.parse(raw);
+      if (saved && typeof saved === "object") {
+        if (Array.isArray(saved.bots) && saved.bots.length) state.bots = saved.bots;
+        if (typeof saved.activeBotId === "string") state.activeBotId = saved.activeBotId;
+        if (saved.messages && typeof saved.messages === "object") state.messages = saved.messages;
+      }
+    } catch (e) {
+      // 読み込めない場合は初期状態で起動
+    }
+  }
+
+  function saveState(reason) {
+    if (!state.dirty && reason === "auto") return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        bots: state.bots,
+        activeBotId: state.activeBotId,
+        messages: state.messages
+      }));
+      state.dirty = false;
+      state.lastSaved = new Date();
+      setSaveStatus("保存済み " + pad(state.lastSaved.getHours()) + ":" + pad(state.lastSaved.getMinutes()));
+    } catch (e) {
+      setSaveStatus("保存できません（ブラウザの保存領域を確認してください）");
+    }
+  }
+
+  function setSaveStatus(text) {
+    document.getElementById("saveStatus").textContent = text;
+  }
+
+  function pad(n) { return n < 10 ? "0" + n : String(n); }
+
+  // ---- 表示 ----
+  function activeBot() {
+    for (var i = 0; i < state.bots.length; i++) {
+      if (state.bots[i].id === state.activeBotId) return state.bots[i];
+    }
+    return state.bots[0];
+  }
+
+  function renderBots() {
+    var list = document.getElementById("botList");
+    list.innerHTML = "";
+    state.bots.forEach(function (bot) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "bot-item";
+      b.setAttribute("role", "option");
+      b.setAttribute("aria-selected", String(bot.id === state.activeBotId));
+      b.textContent = bot.name;
+      var r = document.createElement("span");
+      r.className = "role";
+      r.textContent = bot.role;
+      b.appendChild(r);
+      b.addEventListener("click", function () {
+        state.activeBotId = bot.id;
+        state.dirty = true;
+        render();
+      });
+      list.appendChild(b);
+    });
+  }
+
+  function renderMessages() {
+    var box = document.getElementById("messages");
+    box.innerHTML = "";
+    var bot = activeBot();
+    var log = state.messages[bot.id] || [];
+    if (!log.length) {
+      var e = document.createElement("p");
+      e.className = "empty";
+      e.textContent = bot.name + "に話しかけてみてください。";
+      box.appendChild(e);
+      return;
+    }
+    log.forEach(function (m) {
+      var d = document.createElement("div");
+      d.className = "msg " + (m.role === "user" ? "user" : "bot");
+      d.textContent = m.text;
+      var t = document.createElement("time");
+      t.textContent = new Date(m.ts).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      d.appendChild(t);
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function render() {
+    document.getElementById("botTitle").textContent = activeBot().name + "（" + activeBot().role + "）";
+    renderBots();
+    renderMessages();
+  }
+
+  // ---- 送信 ----
+  function addMessage(botId, role, text) {
+    if (!state.messages[botId]) state.messages[botId] = [];
+    state.messages[botId].push({ role: role, text: text, ts: Date.now() });
+    state.dirty = true;
+  }
+
+  var form = document.getElementById("composer");
+  var input = document.getElementById("input");
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var text = input.value.trim();
+    if (!text) return;
+    var botId = state.activeBotId;
+    addMessage(botId, "user", text);
+    addMessage(botId, "bot", NOT_CONNECTED_REPLY);
+    input.value = "";
+    input.style.height = "";
+    render();
+    saveState("send");
+  });
+
+  input.addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
+      ev.preventDefault();
+      form.dispatchEvent(new Event("submit", { cancelable: true }));
+    }
+  });
+
+  // ---- テーマ（手動切替） ----
+  var themeBtn = document.getElementById("themeBtn");
+  themeBtn.addEventListener("click", function () {
+    var root = document.documentElement;
+    var current = root.getAttribute("data-theme");
+    var dark = current === "dark" || (!current && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    root.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+
+  // ---- オートセーブ（1分ごと）と離脱時の保存 ----
+  setInterval(function () { saveState("auto"); }, AUTOSAVE_MS);
+  window.addEventListener("pagehide", function () { saveState("auto"); });
+
+  // 起動
+  loadState();
+  render();
+  setSaveStatus("未保存");
+
+  // テスト用に最小限の参照を公開（本番動作には不要）
+  window.__godagent = { state: state, saveState: saveState };
+})();
+</script>
+</body>
+</html>
