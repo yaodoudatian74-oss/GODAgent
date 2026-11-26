@@ -88,10 +88,12 @@ function post(b: any, msg: any) { const full = { id: uid('m_'), role: 'bot', bot
 // ---- computer (iframe) --------------------------------------------------
 const computer = { available: true, mode: 'iframe', status: 'idle', url: 'about:blank', shot: null as any, activeBotId: null as any, reason: null as any };
 const computerSnap = () => ({ ...computer });
+// Use absolute paths on the web; relative paths inside the APK (file:// origin).
+const CA = (typeof location !== 'undefined' && location.protocol === 'file:') ? 'computer-apps/' : '/computer-apps/';
 function fixtureUrl(target: string) {
-  const map: Record<string, string> = { salesforce: '/computer-apps/salesforce.html', crm: '/computer-apps/salesforce.html', web: '/computer-apps/web.html', search: '/computer-apps/web.html', mail: '/computer-apps/mail.html', gmail: '/computer-apps/mail.html', sheet: '/computer-apps/sheet.html', drive: '/computer-apps/sheet.html' };
+  const map: Record<string, string> = { salesforce: CA + 'salesforce.html', crm: CA + 'salesforce.html', web: CA + 'web.html', search: CA + 'web.html', mail: CA + 'mail.html', gmail: CA + 'mail.html', sheet: CA + 'sheet.html', drive: CA + 'sheet.html' };
   const k = (target || 'web').toLowerCase().trim();
-  return map[k] || (target.startsWith('/') ? target : '/computer-apps/web.html?q=' + encodeURIComponent(target));
+  return map[k] || (target.startsWith('/') ? target : CA + 'web.html?q=' + encodeURIComponent(target));
 }
 function computerOpenLocal(target: string, botId: string) {
   computer.status = 'working'; computer.url = fixtureUrl(target); computer.activeBotId = botId; emit('computer', computerSnap());

@@ -18,3 +18,9 @@ web/android/capacitor-cordova-android-plugins/
 GODAgent.apk
 aligned.apk
 web/dist-artifact/
+web/dist-apk/
+apk-nosdk/*.jar
+apk-nosdk/classes/
+apk-nosdk/*.apk
+apk-nosdk/*.jks
+apk-nosdk/AndroidManifest.xml
