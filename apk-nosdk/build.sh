@@ -63,5 +63,11 @@ echo "==> Signing (v1; targetSdk 28 so v1 installs on Android 5-14)"
   -alias godagent -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=GODAgent, O=GODAgent, C=JP" >/dev/null 2>&1
 jarsigner -keystore ks.jks -storepass godagent -keypass godagent \
   -sigalg SHA256withRSA -digestalg SHA-256 GODAgent.apk godagent >/dev/null
+
+echo "==> zipalign (4-byte; required so Android can mmap resources.arsc / the icon)"
+# v1 signature covers file contents only, so aligning after signing is safe.
+python3 zipalign.py GODAgent.apk GODAgent-aligned.apk && mv GODAgent-aligned.apk GODAgent.apk
 jarsigner -verify GODAgent.apk | tail -1
 echo "==> Done: $(pwd)/GODAgent.apk"
+echo "    NOTE: each build uses the keystore ks.jks; if you regenerate it, uninstall"
+echo "    the previously installed GODAgent before installing (signature changes)."
