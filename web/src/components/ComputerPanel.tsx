@@ -9,14 +9,14 @@ export function ComputerPanel() {
   return (
     <aside className="preview">
       <div className="preview-head">
-        <strong style={{ fontSize: 14 }}>Computer</strong>
-        <span className="muted" style={{ fontSize: 12 }}>{c.available ? (takeover ? 'You are in control' : 'Bot is in control') : 'Unavailable'}</span>
+        <strong style={{ fontSize: 14 }}>コンピューター</strong>
+        <span className="muted" style={{ fontSize: 12 }}>{c.available ? (takeover ? 'あなたが操作中' : 'Botが操作中') : '利用不可'}</span>
         <div className="grow" />
         <button className="icon-btn preview-close" onClick={() => actions.setModal(null)}>✕</button>
       </div>
       <div className="preview-body">
         {!c.available ? (
-          <div className="muted">The cloud computer is unavailable here ({c.reason || 'Chromium could not start'}). No screen is shown because there is nothing real to display.</div>
+          <div className="muted">このクラウドコンピューターは利用できません（{c.reason || 'Chromium を起動できませんでした'}）。実際に表示できる画面が無いため、何も表示していません。</div>
         ) : (
           <>
             <div className="browser-frame">
@@ -28,17 +28,17 @@ export function ComputerPanel() {
                 ? <iframe className="browser-shot" src={c.url} title="computer" style={{ border: 0, height: 360, pointerEvents: takeover ? 'auto' : 'none' }} />
                 : c.shot
                   ? <img className="browser-shot" src={c.shot} alt="live screenshot" />
-                  : <div className="browser-shot" style={{ display: 'grid', placeItems: 'center', color: 'var(--text-faint)', minHeight: 280 }}>Idle</div>}
+                  : <div className="browser-shot" style={{ display: 'grid', placeItems: 'center', color: 'var(--text-faint)', minHeight: 280 }}>待機中</div>}
             </div>
             <div className="btn-row">
               {!takeover
-                ? <button className="btn" onClick={() => api.takeover(true, botId)}>Take over</button>
-                : <button className="btn primary" onClick={() => api.takeover(false, botId)}>Give control back</button>}
-              <button className="btn sm" onClick={() => api.computerOpen('web', botId)}>Open web</button>
-              <button className="btn sm" onClick={() => api.computerAct('scroll', 400, botId)}>Scroll</button>
+                ? <button className="btn" onClick={() => api.takeover(true, botId)}>操作を引き継ぐ</button>
+                : <button className="btn primary" onClick={() => api.takeover(false, botId)}>操作を返す</button>}
+              <button className="btn sm" onClick={() => api.computerOpen('web', botId)}>Webを開く</button>
+              <button className="btn sm" onClick={() => api.computerAct('scroll', 400, botId)}>スクロール</button>
             </div>
-            {takeover && <div className="takeover-note">You have the computer. Scroll and navigate, then hand control back to the Bot to continue.</div>}
-            {c.activeBotId && <div className="takeover-note">Shared computer · active bot: {getState().bots.find((b) => b.id === c.activeBotId)?.name || c.activeBotId}</div>}
+            {takeover && <div className="takeover-note">あなたがコンピューターを操作中です。スクロール・ページ移動を行い、続きはBotに操作を返してください。</div>}
+            {c.activeBotId && <div className="takeover-note">共有コンピューター・担当Bot: {getState().bots.find((b) => b.id === c.activeBotId)?.name || c.activeBotId}</div>}
           </>
         )}
       </div>

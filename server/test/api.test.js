@@ -42,7 +42,7 @@ test('create, edit, and delete a bot', async () => {
 
 test('a turn produces a streamed reply and persists messages', async () => {
   const b = await get('/api/bootstrap');
-  const bot = b.bots.find((x) => x.name === 'Inbox Manager');
+  const bot = b.bots.find((x) => x.name === '受信トレイ管理');
   await post(`/api/bots/${bot.id}/messages`, { text: 'hello there' });
   await new Promise((r) => setTimeout(r, 2500));
   const d = await get('/api/bots/' + bot.id);
@@ -53,8 +53,8 @@ test('a turn produces a streamed reply and persists messages', async () => {
 
 test('approval flow: card is raised and resolves', async () => {
   const b = await get('/api/bootstrap');
-  const bot = b.bots.find((x) => x.name === 'Sales Outbound');
-  await post(`/api/bots/${bot.id}/messages`, { text: 'send the update email to the team' });
+  const bot = b.bots.find((x) => x.name === '営業アウトバウンド');
+  await post(`/api/bots/${bot.id}/messages`, { text: 'チームに更新のメールを送信して' });
   // wait for an approval card
   let appr = null;
   for (let i = 0; i < 40 && !appr; i++) {

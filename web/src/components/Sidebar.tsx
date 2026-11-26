@@ -7,7 +7,7 @@ function fmtTime(ts: number) {
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const days = Math.floor((now.getTime() - ts) / 86400000);
-  if (days < 7) return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+  if (days < 7) return ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
@@ -15,7 +15,7 @@ function lastLine(botId: string): string {
   const msgs = getState().messages[botId];
   if (!msgs?.length) return '';
   const m = [...msgs].reverse().find((x) => x.type === 'text' && x.text);
-  if (!m) { const c = msgs[msgs.length - 1]; return c.type === 'computer' ? 'used the computer' : c.type; }
+  if (!m) { const c = msgs[msgs.length - 1]; return c.type === 'computer' ? 'コンピューターを使用' : c.type; }
   return m.text!.replace(/\s+/g, ' ').slice(0, 60);
 }
 
@@ -35,23 +35,23 @@ export function Sidebar() {
       <div className="sidebar-top">
         <div className="traffic"><span className="r" /><span className="y" /><span className="g" /></div>
         <div className="grow" />
-        <button className="icon-btn" title="New Bot" onClick={() => actions.setModal('create')}>＋</button>
+        <button className="icon-btn" title="新しいBot" onClick={() => actions.setModal('create')}>＋</button>
       </div>
       <div className="search">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-        <input placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input placeholder="検索" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="bot-list">
-        {pinned.length > 0 && <div className="section-label">Pinned</div>}
+        {pinned.length > 0 && <div className="section-label">ピン留め</div>}
         {pinned.map((b) => <Row key={b.id} b={b} active={b.id === activeId} primary={settings.primaryBotId === b.id} _v={messagesVer} />)}
-        {pinned.length > 0 && rest.length > 0 && <div className="section-label">Bots</div>}
+        {pinned.length > 0 && rest.length > 0 && <div className="section-label">Bot</div>}
         {rest.map((b) => <Row key={b.id} b={b} active={b.id === activeId} primary={settings.primaryBotId === b.id} _v={messagesVer} />)}
       </div>
       <div className="sidebar-foot">
         <div className="uava">{settings.user?.initials || 'YOU'}</div>
-        <span className="uname">{settings.user?.name || 'You'}</span>
+        <span className="uname">{settings.user?.name || 'あなた'}</span>
         <div className="grow" />
-        <button className="icon-btn" title="Settings" onClick={() => actions.setModal('settings')}>⚙</button>
+        <button className="icon-btn" title="設定" onClick={() => actions.setModal('settings')}>⚙</button>
       </div>
     </aside>
   );
@@ -69,7 +69,7 @@ function Row({ b, active, primary }: { b: Bot; active: boolean; primary: boolean
           <span className="name">{b.name}</span>
           <span className="time">{fmtTime(lastTs)}</span>
         </div>
-        <div className="last">{primary ? 'Primary Bot' : b.kind === 'group' ? `Group · ${b.members.length}` : lastLine(b.id)}</div>
+        <div className="last">{primary ? 'プライマリBot' : b.kind === 'group' ? `グループ・${b.members.length}` : lastLine(b.id)}</div>
       </div>
       {menu && <RowMenu b={b} close={() => setMenu(false)} />}
     </div>
@@ -82,13 +82,13 @@ function RowMenu({ b, close }: { b: Bot; close: () => void }) {
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={act(() => {})} />
       <div style={{ position: 'absolute', right: 8, top: 44, zIndex: 21, background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow)', padding: 6, minWidth: 170 }} onClick={(e) => e.stopPropagation()}>
-        <MenuItem onClick={act(() => togglePin(b))}>{b.pinned ? 'Unpin' : 'Pin'}</MenuItem>
-        <MenuItem onClick={act(() => actions.setModal('editAvatar', b))}>Edit avatar…</MenuItem>
-        <MenuItem onClick={act(() => actions.setModal('memory', b))}>Memory…</MenuItem>
-        <MenuItem onClick={act(() => actions.setModal('routines', b))}>Routines…</MenuItem>
-        <MenuItem onClick={act(() => makePrimary(b))}>Make Primary Bot</MenuItem>
-        <MenuItem onClick={act(() => hideBot(b))}>Hide</MenuItem>
-        <MenuItem danger onClick={act(() => delBot(b))}>Delete</MenuItem>
+        <MenuItem onClick={act(() => togglePin(b))}>{b.pinned ? 'ピン留め解除' : 'ピン留め'}</MenuItem>
+        <MenuItem onClick={act(() => actions.setModal('editAvatar', b))}>アバターを編集…</MenuItem>
+        <MenuItem onClick={act(() => actions.setModal('memory', b))}>メモリ…</MenuItem>
+        <MenuItem onClick={act(() => actions.setModal('routines', b))}>ルーティン…</MenuItem>
+        <MenuItem onClick={act(() => makePrimary(b))}>プライマリBotにする</MenuItem>
+        <MenuItem onClick={act(() => hideBot(b))}>非表示</MenuItem>
+        <MenuItem danger onClick={act(() => delBot(b))}>削除</MenuItem>
       </div>
     </>
   );
@@ -101,4 +101,4 @@ import { api } from '../api';
 async function togglePin(b: Bot) { await api.patchBot(b.id, { pinned: !b.pinned }); }
 async function makePrimary(b: Bot) { await api.settings({ primaryBotId: b.id }); }
 async function hideBot(b: Bot) { await api.patchBot(b.id, { hidden: true }); }
-async function delBot(b: Bot) { if (confirm(`Delete ${b.name}?`)) { await api.deleteBot(b.id); } }
+async function delBot(b: Bot) { if (confirm(`${b.name} を削除しますか？`)) { await api.deleteBot(b.id); } }

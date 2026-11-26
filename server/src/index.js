@@ -50,7 +50,7 @@ app.post('/api/bots', (req, res) => {
   const t = now();
   const b = {
     id: uid('bot_'), kind: req.body.kind === 'group' ? 'group' : 'bot',
-    name: (req.body.name || 'New Bot').slice(0, 60), title: (req.body.title || '').slice(0, 80),
+    name: (req.body.name || '新しいBot').slice(0, 60), title: (req.body.title || '').slice(0, 80),
     shape: SHAPES.includes(req.body.shape) ? req.body.shape : 'blob',
     color: /^#[0-9a-f]{6}$/i.test(req.body.color || '') ? req.body.color : PALETTE[Math.floor(Math.random() * PALETTE.length)],
     avatarImage: req.body.avatarImage || null, state: 'idle', pinned: false, hidden: false,
@@ -58,7 +58,7 @@ app.post('/api/bots', (req, res) => {
   };
   db.putBot(b);
   db.addMessage(b.id, { id: uid('m_'), role: 'bot', botId: b.id, type: 'text',
-    text: `Hi — I’m ${b.name}. Tell me what to own and I’ll keep at it between chats.`, ts: t });
+    text: `はじめまして、${b.name}です。任せたい役割を教えてください。会話の合間も作業を続けます。`, ts: t });
   bus.emit('*', 'bots', db.listBots());
   res.json(b);
 });
@@ -202,7 +202,7 @@ app.post('/api/avatar/generate', (req, res) => {
   let h = 0; for (const c of prompt) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const shape = SHAPES[h % SHAPES.length];
   const color = PALETTE[(h >> 5) % PALETTE.length];
-  res.json({ shape, color, note: 'Generated from description (shape + colour). Image generation is not wired up in this build.' });
+  res.json({ shape, color, note: '説明から生成しました（形状＋色）。画像生成は本ビルドでは未対応です。' });
 });
 
 // ----- event triggers (webhook / email / github / slack) ----------------

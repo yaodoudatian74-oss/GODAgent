@@ -1,27 +1,27 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><title>CRM Cloud</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>CRM クラウド</title>
 <link rel="stylesheet" href="/computer-apps/_style.css"></head><body>
-<div class="topbar"><span class="brand">CRM Cloud</span>
-<span class="tab active">Accounts</span><span class="tab">Contacts</span><span class="tab">Opportunities</span><span class="tab">Reports</span></div>
+<div class="topbar"><span class="brand">CRM クラウド</span>
+<span class="tab active">取引先</span><span class="tab">担当者</span><span class="tab">商談</span><span class="tab">レポート</span></div>
 <div id="app"></div>
 <script>
 const signed = location.hash.includes('signed');
 const el = document.getElementById('app');
 if(!signed){
-  el.innerHTML = `<div class="login"><div class="h1">Sign in</div><div class="sub">Access your accounts</div>
-  <div class="field"><label>Email</label><input id="email" placeholder="you@company.com"></div>
-  <div class="field"><label>Password</label><input id="pw" type="password" placeholder="••••••••"></div>
-  <button class="btn" id="signin" onclick="location.hash='signed';location.reload()">Sign in</button></div>`;
+  el.innerHTML = `<div class="login"><div class="h1">サインイン</div><div class="sub">取引先にアクセス</div>
+  <div class="field"><label>メールアドレス</label><input id="email" placeholder="you@company.com"></div>
+  <div class="field"><label>パスワード</label><input id="pw" type="password" placeholder="••••••••"></div>
+  <button class="btn" id="signin" onclick="location.hash='signed';location.reload()">サインイン</button></div>`;
 } else {
   el.innerHTML = `<div class="wrap"><div class="side">
-  <a class="active">My Accounts</a><a>All Accounts</a><a>Recently Viewed</a><a>Pipeline</a></div>
-  <div class="main"><div class="h1">My Accounts</div><div class="sub">6 accounts you own</div>
-  <table><thead><tr><th>Account</th><th>Owner</th><th>Stage</th><th>ARR</th></tr></thead><tbody>
-  <tr><td>Globex</td><td>You</td><td><span class="pill">Expansion</span></td><td>$84k</td></tr>
-  <tr><td>Initech</td><td>You</td><td><span class="pill">Renewal</span></td><td>$52k</td></tr>
-  <tr><td>Umbrella Co</td><td>You</td><td><span class="pill">New</span></td><td>$31k</td></tr>
-  <tr><td>Soylent</td><td>You</td><td><span class="pill">Expansion</span></td><td>$120k</td></tr>
-  <tr><td>Hooli</td><td>You</td><td><span class="pill">Renewal</span></td><td>$77k</td></tr>
-  <tr><td>Stark Labs</td><td>You</td><td><span class="pill">New</span></td><td>$44k</td></tr>
+  <a class="active">担当の取引先</a><a>すべての取引先</a><a>最近表示</a><a>パイプライン</a></div>
+  <div class="main"><div class="h1">担当の取引先</div><div class="sub">あなたが担当する6件</div>
+  <table><thead><tr><th>取引先</th><th>担当</th><th>ステージ</th><th>年間売上</th></tr></thead><tbody>
+  <tr><td>Globex</td><td>あなた</td><td><span class="pill">拡大</span></td><td>¥840万</td></tr>
+  <tr><td>Initech</td><td>あなた</td><td><span class="pill">更新</span></td><td>¥520万</td></tr>
+  <tr><td>Umbrella Co</td><td>あなた</td><td><span class="pill">新規</span></td><td>¥310万</td></tr>
+  <tr><td>Soylent</td><td>あなた</td><td><span class="pill">拡大</span></td><td>¥1200万</td></tr>
+  <tr><td>Hooli</td><td>あなた</td><td><span class="pill">更新</span></td><td>¥770万</td></tr>
+  <tr><td>Stark Labs</td><td>あなた</td><td><span class="pill">新規</span></td><td>¥440万</td></tr>
   </tbody></table></div></div>`;
 }
 </script></body></html>

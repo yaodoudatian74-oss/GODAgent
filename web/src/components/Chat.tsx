@@ -28,8 +28,8 @@ export function Chat() {
           <div className="subtitle">{stateLabel(bot.state)}{bot.title ? ` · ${bot.title}` : ''}</div>
         </div>
         <div className="grow" />
-        <button className="icon-btn" title="Computer" onClick={() => actions.setModal('preview')}>🖥</button>
-        <button className="icon-btn" title="Bot details" onClick={() => actions.setModal('editAvatar', bot)}>⋯</button>
+        <button className="icon-btn" title="コンピューター" onClick={() => actions.setModal('preview')}>🖥</button>
+        <button className="icon-btn" title="Botの詳細" onClick={() => actions.setModal('editAvatar', bot)}>⋯</button>
       </header>
 
       <div className="chat-scroll" ref={scroller}>
@@ -44,7 +44,7 @@ export function Chat() {
 }
 
 function stateLabel(s: string) {
-  return ({ idle: 'Idle', thinking: 'Thinking…', working: 'Working…', waiting: 'Waiting for you', blocked: 'Needs your help', done: 'Done' } as any)[s] || s;
+  return ({ idle: '待機中', thinking: '思考中…', working: '作業中…', waiting: 'あなたの返答待ち', blocked: '助けが必要です', done: '完了' } as any)[s] || s;
 }
 
 function MsgView({ m, prev }: { m: Msg; prev?: Msg }) {
@@ -72,11 +72,11 @@ function Composer({ botId, busy }: { botId: string; busy: boolean }) {
   async function submit() {
     const t = text.trim(); if (!t && files.length === 0) return;
     setText(''); setFiles([]); setTimeout(() => { if (ta.current) ta.current.style.height = 'auto'; }, 0);
-    await actions.send(t || '(sent files)', files);
+    await actions.send(t || '（ファイルを送信）', files);
   }
   async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return;
-    if (f.size > 25 * 1024 * 1024) { alert('File exceeds the 25MB limit'); return; }
+    if (f.size > 25 * 1024 * 1024) { alert('ファイルが25MBの上限を超えています'); return; }
     const dataUrl = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(f); });
     const meta = await api.uploadFile(f.name, f.type, dataUrl);
     setFiles((x) => [...x, meta]);
@@ -86,10 +86,10 @@ function Composer({ botId, busy }: { botId: string; busy: boolean }) {
     <div className="composer">
       {files.length > 0 && <div className="attach-row">{files.map((f) => <span key={f.id} className="chip">📎 {f.name} <button style={{ border: 'none', background: 'none' }} onClick={() => setFiles((x) => x.filter((y) => y.id !== f.id))}>✕</button></span>)}</div>}
       <div className="composer-inner">
-        <label className="round" title="Attach">
+        <label className="round" title="添付">
           ＋<input type="file" hidden onChange={pickFile} />
         </label>
-        <textarea ref={ta} value={text} placeholder={`Message ${bot?.name || ''}`} rows={1}
+        <textarea ref={ta} value={text} placeholder={`${bot?.name || ''} にメッセージ`} rows={1}
           onChange={(e) => { setText(e.target.value); grow(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }} />
         {busy

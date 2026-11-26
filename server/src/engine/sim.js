@@ -14,76 +14,76 @@ export async function runSimTurn(bot, userText, { signal } = {}) {
 
   // 1) memory capture
   if (has(t, 'remember', 'always', 'from now on', '覚え', '今後', 'いつも')) {
-    await T.saveMemory('instruction', userText.replace(/^(remember|always)[:,\s]*/i, '').trim());
-    await T.reply('Got it — I’ll keep that in mind from now on.', { signal });
+    await T.saveMemory('instruction', userText.replace(/^(remember|always|覚えて|今後は?)[:,、\s]*/i, '').trim());
+    await T.reply('承知しました。今後はそのようにいたします。', { signal });
     T.done(); return;
   }
 
   // 2) questions back to the user when the ask is ambiguous
-  if (has(t, 'which', 'should i', 'option', 'choose') && bot.kind !== 'group') {
+  if (has(t, 'which', 'should i', 'option', 'choose', 'どっち', 'どちら', 'どれ', 'べき') && bot.kind !== 'group') {
     const ans = await T.askQuestion({
-      question: 'A couple of ways I could take this — which do you prefer?',
-      options: ['Move fast, ask forgiveness', 'Draft everything for your review first', 'Just the highest-impact items'],
+      question: '進め方がいくつか考えられます。どれがよろしいですか？',
+      options: ['まず動いて、必要なら後で調整', 'すべて下書きしてから確認を仰ぐ', '最も効果の大きい項目だけ'],
     });
-    await T.reply(`Understood — I’ll go with: ${ans}. Starting now.`, { signal });
+    await T.reply(`承知しました。「${ans}」で進めます。開始いたします。`, { signal });
     T.done(); return;
   }
 
   // 3) group handoff
   if (bot.kind === 'group') {
     const members = (bot.members || []).map((id) => db.getBot(id)).filter(Boolean);
-    await T.reply('On it — let me pull in the right people.', { signal });
+    await T.reply('承知しました。適任のメンバーに引き継ぎます。', { signal });
     if (members[1]) {
       await T.handoff(members[1].id, userText.slice(0, 120));
       await sleep(400);
       const sub = makeTools(members[1]);
-      await sub.reply(`Picking this up — I’ll handle "${userText.slice(0, 60)}" and report back.`, { signal });
+      await sub.reply(`引き継ぎました。「${userText.slice(0, 60)}」を担当し、完了後にご報告します。`, { signal });
       sub.done();
     }
     T.done(); return;
   }
 
   // 4) computer + outbound work (sign in, browse, draft, send)
-  if (has(t, 'sign in', 'log in', 'login', 'salesforce', 'crm', 'accounts', 'サインイン', 'ログイン')) {
-    await T.reply('Checking what’s connected. Hex, Gmail, and LinkedIn are already signed in. Salesforce isn’t.', { signal });
-    await T.computerOpen('salesforce', 'Sign in to Salesforce so I can see the accounts you own.');
-    await T.reply('Signed in. I can see 6 accounts you own. Want me to start outreach drafts?', { signal });
+  if (has(t, 'sign in', 'log in', 'login', 'salesforce', 'crm', 'accounts', 'サインイン', 'ログイン', '顧客')) {
+    await T.reply('接続状況を確認します。Hex・Gmail・LinkedIn はサインイン済みですが、Salesforce は未サインインです。', { signal });
+    await T.computerOpen('salesforce', '担当アカウントを確認するため、Salesforce にサインインします。');
+    await T.reply('サインインしました。担当アカウントが6件あります。アウトリーチの下書きを始めますか？', { signal });
     T.done(); return;
   }
 
-  if (has(t, 'research', 'prospect', 'pipeline', 'outbound', 'outreach', 'web', 'search', 'リサーチ', '調べ')) {
-    await T.reply('Starting. I’ll pull eligible prospects, grab context from the web, and draft outreach in your voice.', { signal });
-    await T.computerOpen('sheet', 'Reading eligible prospects from the sheet.');
-    await T.computerOpen('web', 'Grabbing context on contacts and accounts.');
-    await T.draftEmail({ to: 'vicky@globex.example', subject: 'Quick intro + next steps', body: 'Hi Vicky,\n\nFollowing up — I’d love 20 minutes this week. Does Thursday work?\n\nBest,' });
-    const d = await T.requestApproval({ action: 'send email', detail: 'Send 1 drafted email to vicky@globex.example', risk: 'high' });
-    if (d.decision === 'allow') await T.reply('Sent. I’ll park the rest as drafts for your review. Done.', { signal });
-    else await T.reply('Held it. All drafts are parked for your review instead.', { signal });
+  if (has(t, 'research', 'prospect', 'pipeline', 'outbound', 'outreach', 'web', 'search', 'リサーチ', '調べ', '営業', 'パイプライン')) {
+    await T.reply('開始します。対象の見込み客を抽出し、Webで背景を収集して、あなたの文体で下書きします。', { signal });
+    await T.computerOpen('sheet', 'シートから対象の見込み客を読み込みます。');
+    await T.computerOpen('web', '連絡先とアカウントの背景情報を収集します。');
+    await T.draftEmail({ to: 'vicky@globex.example', subject: 'ご挨拶と次のステップ', body: 'Vicky 様\n\n先日の件のフォローです。今週20分ほどお時間をいただけませんか。木曜はいかがでしょう。\n\nよろしくお願いいたします。' });
+    const d = await T.requestApproval({ action: 'メールを送信', detail: 'vicky@globex.example 宛に下書き1通を送信', risk: 'high' });
+    if (d.decision === 'allow') await T.reply('送信しました。残りは下書きとして保存しておきます。完了です。', { signal });
+    else await T.reply('送信は保留しました。すべて下書きとして保存しています。', { signal });
     T.done(); return;
   }
 
   if (has(t, 'send', 'post', 'email', 'メール', '送信', '投稿')) {
-    await T.reply('Drafted. This one goes outside, so I’ll check before sending.', { signal });
-    await T.draftEmail({ to: 'team@company.example', subject: 'Update', body: userText.slice(0, 200) });
-    const d = await T.requestApproval({ action: 'send email', detail: userText.slice(0, 120), risk: 'high' });
-    await T.reply(d.decision === 'allow' ? 'Sent. Done.' : 'Kept it as a draft.', { signal });
+    await T.reply('下書きしました。外部への送信になるため、送信前に確認します。', { signal });
+    await T.draftEmail({ to: 'team@company.example', subject: 'ご連絡', body: userText.slice(0, 200) });
+    const d = await T.requestApproval({ action: 'メールを送信', detail: userText.slice(0, 120), risk: 'high' });
+    await T.reply(d.decision === 'allow' ? '送信しました。完了です。' : '下書きとして保存しました。', { signal });
     T.done(); return;
   }
 
   if (has(t, 'delete', 'remove', 'purchase', 'buy', 'pay', '削除', '購入', '支払')) {
-    await T.reply('That’s a sensitive action, so I’ll confirm first.', { signal });
-    const d = await T.requestApproval({ action: 'destructive action', detail: userText.slice(0, 140), risk: 'high', autoReviewable: false });
-    await T.reply(d.decision === 'allow' ? 'Done.' : 'Cancelled — nothing changed.', { signal });
+    await T.reply('影響の大きい操作のため、先に確認いたします。', { signal });
+    const d = await T.requestApproval({ action: '重要な操作', detail: userText.slice(0, 140), risk: 'high', autoReviewable: false });
+    await T.reply(d.decision === 'allow' ? '実行しました。' : '中止しました。変更はありません。', { signal });
     T.done(); return;
   }
 
   // 5) default conversational reply, shaped by the bot's role
   const role = (bot.title || '').toLowerCase();
   let reply;
-  if (role.includes('recruit') || bot.name.includes('Talent')) reply = 'I can source candidates, draft intros in your voice, and keep every thread warm. Want me to start a search?';
-  else if (role.includes('finance') || bot.name.includes('Expense')) reply = 'I’ll keep expenses filed and flag anything out of policy. Point me at the receipts and I’ll take it from here.';
-  else if (role.includes('email') || bot.name.includes('Inbox')) reply = 'I can get your inbox to zero, draft replies, and park anything that needs you. Should I start a pass now?';
-  else reply = `Hey — good to meet you. What do you want me around for? Anything concrete, or more of a general sidekick?`;
+  if (role.includes('recruit') || role.includes('採用') || bot.name.includes('Talent') || bot.name.includes('採用')) reply = '候補者の探索、あなたの文体での紹介文の下書き、各やり取りのフォローまで対応できます。探索を始めましょうか？';
+  else if (role.includes('finance') || role.includes('経費') || bot.name.includes('Expense') || bot.name.includes('経費')) reply = '経費の申請を管理し、規定外のものがあれば指摘します。領収書をお預けいただければ、こちらで進めます。';
+  else if (role.includes('email') || role.includes('メール') || bot.name.includes('Inbox') || bot.name.includes('受信')) reply = '受信トレイをゼロにし、返信を下書きし、要対応のものは保留できます。いま一巡しましょうか？';
+  else reply = 'はじめまして。どのような役割でお役に立てばよいでしょう。具体的なご依頼でも、全般的なサポートでも対応します。';
   await T.reply(reply, { signal });
   T.done();
 }

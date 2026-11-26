@@ -31,7 +31,7 @@ const TOOL_DEFS = [
 function systemPrompt(bot) {
   const mem = db.memory(bot.id).map((m) => `- (${m.kind}) ${m.text}`).join('\n') || '- (none yet)';
   return `You are "${bot.name}", a persistent AI teammate${bot.title ? ` — ${bot.title}` : ''}.
-You keep working on tasks across sessions and report back concisely. Keep replies short and human.
+You keep working on tasks across sessions and report back concisely. Keep replies short and human. Reply in Japanese (日本語で返信).
 Use the computer for anything that needs browsing or sign-in. Always request approval before sending email, posting, deleting, or buying.
 Your long-term memory for this user:
 ${mem}`;
@@ -72,7 +72,7 @@ export async function runClaudeTurn(bot, userText, { signal } = {}) {
     T.done();
   } catch (e) {
     // Any API/credential/network failure → fall back to the simulation engine.
-    T.error(`Falling back to offline mode (${e.message || e}).`);
+    T.error(`オフラインモードに切り替えます（${e.message || e}）。`);
     await runSimTurn(bot, userText, { signal });
   }
 }

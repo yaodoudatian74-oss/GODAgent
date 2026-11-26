@@ -51,31 +51,31 @@ function emit(event: string, payload: any) { for (const fn of subs) try { fn(eve
 export function openStream(_ch: string, onEvent: Fn) { subs.add(onEvent); onEvent('hello', { engine: 'simulation', computer: computerSnap() }); return () => subs.delete(onEvent); }
 
 // ---- seed ---------------------------------------------------------------
-function bot(p: any) { const t = now(); return { id: uid('bot_'), kind: 'bot', name: 'New Bot', title: '', shape: 'blob', color: '#777777', avatarImage: null, state: 'idle', pinned: false, hidden: false, members: [], apps: [], createdAt: t, updatedAt: t, ...p }; }
+function bot(p: any) { const t = now(); return { id: uid('bot_'), kind: 'bot', name: '新しいBot', title: '', shape: 'blob', color: '#777777', avatarImage: null, state: 'idle', pinned: false, hidden: false, members: [], apps: [], createdAt: t, updatedAt: t, ...p }; }
 function ensureSeed() {
   if (Object.keys(S.bots).length) return;
   const seed = [
-    { name: 'Chief', title: 'Primary Bot', shape: 'circle', color: '#01C971', pinned: true, last: 'booked the venue and sent the confirmations.' },
-    { name: 'Sales Outbound', title: 'Pipeline & outbound', shape: 'capsule', color: '#F4B400', last: 'Done.' },
-    { name: 'Inbox Manager', title: 'Email triage', shape: 'blob', color: '#7C5CFF', last: 'sent, inbox at zero, 5 drafts parked for you.' },
-    { name: 'Account Manager', title: 'Customer success', shape: 'circle', color: '#8E44AD', last: "invite's out to Vicky, Globex note added." },
-    { name: 'Talent Scout', title: 'Recruiting', shape: 'teardrop', color: '#1183FF', last: '3 intros drafted in your voice, held for review.' },
-    { name: 'Expense Manager', title: 'Finance ops', shape: 'circle', color: '#FF6702', last: 'report filed. 9 receipts, nothing out of policy.' },
+    { name: 'チーフ', title: 'プライマリBot', shape: 'circle', color: '#01C971', pinned: true, last: '会場を予約し、確認メールを送信しました。' },
+    { name: '営業アウトバウンド', title: 'パイプライン＆アウトバウンド', shape: 'capsule', color: '#F4B400', last: '完了です。' },
+    { name: '受信トレイ管理', title: 'メール整理', shape: 'blob', color: '#7C5CFF', last: '送信済み。受信トレイはゼロ、下書き5件を保留中です。' },
+    { name: 'アカウント管理', title: 'カスタマーサクセス', shape: 'circle', color: '#8E44AD', last: 'Vicky に招待を送付、Globex のメモを追加しました。' },
+    { name: '採用スカウト', title: '採用', shape: 'teardrop', color: '#1183FF', last: 'あなたの文体で紹介文を3件下書きし、確認用に保留しています。' },
+    { name: '経費管理', title: '財務オペ', shape: 'circle', color: '#FF6702', last: 'レポートを提出。領収書9件、規定外はありません。' },
   ];
   const created = seed.map((s) => {
     const b = bot({ name: s.name, title: s.title, shape: s.shape, color: s.color, pinned: !!s.pinned });
     S.bots[b.id] = b; S.messages[b.id] = [
-      { id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `Hi — I’m ${s.name}. Tell me what to own and I’ll keep at it between chats. What should I pick up first?`, ts: now() - 86400000 },
+      { id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `はじめまして、${s.name}です。任せたい役割を教えてください。会話の合間も作業を続けます。まず何から着手しましょうか？`, ts: now() - 86400000 },
       { id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: s.last, ts: now() - 3600000 },
     ];
-    S.memory[b.id] = [{ id: uid('mem_'), kind: 'instruction', text: `${s.title}. Keep replies short and report back when done.`, ts: now() }];
+    S.memory[b.id] = [{ id: uid('mem_'), kind: 'instruction', text: `${s.title}。返信は短く、完了したら報告すること。`, ts: now() }];
     return b;
   });
-  const g = bot({ kind: 'group', name: 'Offsite crew', title: 'Group', shape: 'flower', color: '#93643A', members: created.slice(0, 3).map((b) => b.id) });
-  S.bots[g.id] = g; S.messages[g.id] = [{ id: uid('m_'), role: 'bot', botId: created[0].id, type: 'text', text: 'that leaves the pipeline. I’d spin up a focused Bot for the follow-ups.', ts: now() - 3600000 }];
+  const g = bot({ kind: 'group', name: '合宿チーム', title: 'グループ', shape: 'flower', color: '#93643A', members: created.slice(0, 3).map((b) => b.id) });
+  S.bots[g.id] = g; S.messages[g.id] = [{ id: uid('m_'), role: 'bot', botId: created[0].id, type: 'text', text: '残るはパイプラインですね。フォローアップ用に専任のBotを立ち上げます。', ts: now() - 3600000 }];
   S.settings.primaryBotId = created[0].id;
-  S.skills[`sk`] = { id: uid('skill_'), name: 'Weekly status digest', description: 'Summarise the week’s progress and post a digest.', steps: ['Collect updates', 'Group by project', 'Draft digest', 'Ask approval'], inputs: ['week'], scope: 'account', ts: now() };
-  const r = { id: uid('rtn_'), botId: created[0].id, name: 'Morning briefing', trigger: { kind: 'daily', at: '08:30' }, skillId: null, prompt: 'Give me a short morning briefing.', enabled: true, lastRun: null, runs: [], ts: now() };
+  S.skills[`sk`] = { id: uid('skill_'), name: '週次ステータスまとめ', description: '各プロジェクトの今週の進捗をまとめ、ダイジェストを投稿する。', steps: ['接続済みアプリから更新を収集', 'プロジェクトごとに分類', '短いダイジェストを下書き', '投稿前に承認を仰ぐ'], inputs: ['week'], scope: 'account', ts: now() };
+  const r = { id: uid('rtn_'), botId: created[0].id, name: '朝のブリーフィング', trigger: { kind: 'daily', at: '08:30' }, skillId: null, prompt: '短い朝のブリーフィングをください。', enabled: true, lastRun: null, runs: [], ts: now() };
   S.routines[r.id] = r;
   save();
 }
@@ -116,7 +116,7 @@ function tools(b: any) {
       for (const w of words) { acc += w; const m = S.messages[b.id].find((x) => x.id === id); if (m) m.text = acc; emit('message.delta', { id, text: acc }); await sleep(14 + Math.random() * 24); }
       const m = S.messages[b.id].find((x) => x.id === id); if (m) { m.text = acc; m.streaming = false; } save(); emit('message.done', { id, text: acc }); return acc;
     },
-    async saveMemory(kind: string, text: string) { const item = { id: uid('mem_'), kind, text, ts: now() }; (S.memory[b.id] ||= []).push(item); save(); post(b, { type: 'memory', memory: item, text: `Saved to memory: ${text}` }); return item; },
+    async saveMemory(kind: string, text: string) { const item = { id: uid('mem_'), kind, text, ts: now() }; (S.memory[b.id] ||= []).push(item); save(); post(b, { type: 'memory', memory: item, text: `メモリに保存: ${text}` }); return item; },
     async draftEmail(e: any) { return post(b, { type: 'email', email: { ...e, sent: false } }); },
     async requestApproval({ action, detail, risk = 'normal', autoReviewable = true }: any) {
       const auto = S.settings.autoReview && autoReviewable ? evaluateRules(action) : 'ask';
@@ -161,31 +161,31 @@ async function runTurn(b: any, userText: string) {
 }
 async function plan(b: any, userText: string) {
   const T = tools(b); const t = userText.toLowerCase();
-  if (has(t, 'remember', 'always', 'from now on', '覚え', '今後', 'いつも')) { await T.saveMemory('instruction', userText.replace(/^(remember|always)[:,\s]*/i, '').trim()); await T.reply('Got it — I’ll keep that in mind from now on.'); return T.done(); }
-  if (has(t, 'which', 'should i', 'option', 'choose') && b.kind !== 'group') { const a = await T.askQuestion({ question: 'A couple of ways I could take this — which do you prefer?', options: ['Move fast, ask forgiveness', 'Draft everything for your review first', 'Just the highest-impact items'] }); await T.reply(`Understood — I’ll go with: ${a}. Starting now.`); return T.done(); }
+  if (has(t, 'remember', 'always', 'from now on', '覚え', '今後', 'いつも')) { await T.saveMemory('instruction', userText.replace(/^(remember|always|覚えて|今後は?)[:,、\s]*/i, '').trim()); await T.reply('承知しました。今後はそのようにいたします。'); return T.done(); }
+  if (has(t, 'which', 'should i', 'option', 'choose', 'どっち', 'どちら', 'どれ', 'べき') && b.kind !== 'group') { const a = await T.askQuestion({ question: '進め方がいくつか考えられます。どれがよろしいですか？', options: ['まず動いて、必要なら後で調整', 'すべて下書きしてから確認を仰ぐ', '最も効果の大きい項目だけ'] }); await T.reply(`承知しました。「${a}」で進めます。開始いたします。`); return T.done(); }
   if (b.kind === 'group') {
     const members = (b.members || []).map((id: string) => S.bots[id]).filter(Boolean);
-    await T.reply('On it — let me pull in the right people.');
-    if (members[1]) { await T.handoff(members[1].id, userText.slice(0, 120)); await sleep(400); const sub = tools(members[1]); await sub.reply(`Picking this up — I’ll handle "${userText.slice(0, 60)}" and report back.`); sub.done(); }
+    await T.reply('承知しました。適任のメンバーに引き継ぎます。');
+    if (members[1]) { await T.handoff(members[1].id, userText.slice(0, 120)); await sleep(400); const sub = tools(members[1]); await sub.reply(`引き継ぎました。「${userText.slice(0, 60)}」を担当し、完了後にご報告します。`); sub.done(); }
     return T.done();
   }
-  if (has(t, 'sign in', 'log in', 'login', 'salesforce', 'crm', 'accounts', 'サインイン', 'ログイン')) { await T.reply('Checking what’s connected. Hex, Gmail, and LinkedIn are already signed in. Salesforce isn’t.'); await T.computerOpen('salesforce', 'Sign in to Salesforce so I can see the accounts you own.'); await T.reply('Signed in. I can see 6 accounts you own. Want me to start outreach drafts?'); return T.done(); }
-  if (has(t, 'research', 'prospect', 'pipeline', 'outbound', 'outreach', 'web', 'search', 'リサーチ', '調べ')) {
-    await T.reply('Starting. I’ll pull eligible prospects, grab context from the web, and draft outreach in your voice.');
-    await T.computerOpen('sheet', 'Reading eligible prospects from the sheet.');
-    await T.computerOpen('web', 'Grabbing context on contacts and accounts.');
-    await T.draftEmail({ to: 'vicky@globex.example', subject: 'Quick intro + next steps', body: 'Hi Vicky,\n\nFollowing up — I’d love 20 minutes this week. Does Thursday work?\n\nBest,' });
-    const d = await T.requestApproval({ action: 'send email', detail: 'Send 1 drafted email to vicky@globex.example', risk: 'high' });
-    await T.reply(d.decision === 'allow' ? 'Sent. I’ll park the rest as drafts for your review. Done.' : 'Held it. All drafts are parked for your review instead.');
+  if (has(t, 'sign in', 'log in', 'login', 'salesforce', 'crm', 'accounts', 'サインイン', 'ログイン', '顧客')) { await T.reply('接続状況を確認します。Hex・Gmail・LinkedIn はサインイン済みですが、Salesforce は未サインインです。'); await T.computerOpen('salesforce', '担当アカウントを確認するため、Salesforce にサインインします。'); await T.reply('サインインしました。担当アカウントが6件あります。アウトリーチの下書きを始めますか？'); return T.done(); }
+  if (has(t, 'research', 'prospect', 'pipeline', 'outbound', 'outreach', 'web', 'search', 'リサーチ', '調べ', '営業', 'パイプライン')) {
+    await T.reply('開始します。対象の見込み客を抽出し、Webで背景を収集して、あなたの文体で下書きします。');
+    await T.computerOpen('sheet', 'シートから対象の見込み客を読み込みます。');
+    await T.computerOpen('web', '連絡先とアカウントの背景情報を収集します。');
+    await T.draftEmail({ to: 'vicky@globex.example', subject: 'ご挨拶と次のステップ', body: 'Vicky 様\n\n先日の件のフォローです。今週20分ほどお時間をいただけませんか。木曜はいかがでしょう。\n\nよろしくお願いいたします。' });
+    const d = await T.requestApproval({ action: 'メールを送信', detail: 'vicky@globex.example 宛に下書き1通を送信', risk: 'high' });
+    await T.reply(d.decision === 'allow' ? '送信しました。残りは下書きとして保存しておきます。完了です。' : '送信は保留しました。すべて下書きとして保存しています。');
     return T.done();
   }
-  if (has(t, 'send', 'post', 'email', 'メール', '送信', '投稿')) { await T.reply('Drafted. This one goes outside, so I’ll check before sending.'); await T.draftEmail({ to: 'team@company.example', subject: 'Update', body: userText.slice(0, 200) }); const d = await T.requestApproval({ action: 'send email', detail: userText.slice(0, 120), risk: 'high' }); await T.reply(d.decision === 'allow' ? 'Sent. Done.' : 'Kept it as a draft.'); return T.done(); }
-  if (has(t, 'delete', 'remove', 'purchase', 'buy', 'pay', '削除', '購入', '支払')) { await T.reply('That’s a sensitive action, so I’ll confirm first.'); const d = await T.requestApproval({ action: 'destructive action', detail: userText.slice(0, 140), risk: 'high', autoReviewable: false }); await T.reply(d.decision === 'allow' ? 'Done.' : 'Cancelled — nothing changed.'); return T.done(); }
+  if (has(t, 'send', 'post', 'email', 'メール', '送信', '投稿')) { await T.reply('下書きしました。外部への送信になるため、送信前に確認します。'); await T.draftEmail({ to: 'team@company.example', subject: 'ご連絡', body: userText.slice(0, 200) }); const d = await T.requestApproval({ action: 'メールを送信', detail: userText.slice(0, 120), risk: 'high' }); await T.reply(d.decision === 'allow' ? '送信しました。完了です。' : '下書きとして保存しました。'); return T.done(); }
+  if (has(t, 'delete', 'remove', 'purchase', 'buy', 'pay', '削除', '購入', '支払')) { await T.reply('影響の大きい操作のため、先に確認いたします。'); const d = await T.requestApproval({ action: '重要な操作', detail: userText.slice(0, 140), risk: 'high', autoReviewable: false }); await T.reply(d.decision === 'allow' ? '実行しました。' : '中止しました。変更はありません。'); return T.done(); }
   const role = (b.title || '').toLowerCase(); let reply;
-  if (role.includes('recruit') || b.name.includes('Talent')) reply = 'I can source candidates, draft intros in your voice, and keep every thread warm. Want me to start a search?';
-  else if (role.includes('finance') || b.name.includes('Expense')) reply = 'I’ll keep expenses filed and flag anything out of policy. Point me at the receipts and I’ll take it from here.';
-  else if (role.includes('email') || b.name.includes('Inbox')) reply = 'I can get your inbox to zero, draft replies, and park anything that needs you. Should I start a pass now?';
-  else reply = 'Hey — good to meet you. What do you want me around for? Anything concrete, or more of a general sidekick?';
+  if (role.includes('recruit') || role.includes('採用') || b.name.includes('Talent') || b.name.includes('採用')) reply = '候補者の探索、あなたの文体での紹介文の下書き、各やり取りのフォローまで対応できます。探索を始めましょうか？';
+  else if (role.includes('finance') || role.includes('経費') || b.name.includes('Expense') || b.name.includes('経費')) reply = '経費の申請を管理し、規定外のものがあれば指摘します。領収書をお預けいただければ、こちらで進めます。';
+  else if (role.includes('email') || role.includes('メール') || b.name.includes('Inbox') || b.name.includes('受信')) reply = '受信トレイをゼロにし、返信を下書きし、要対応のものは保留できます。いま一巡しましょうか？';
+  else reply = 'はじめまして。どのような役割でお役に立てばよいでしょう。具体的なご依頼でも、全般的なサポートでも対応します。';
   await T.reply(reply); T.done();
 }
 
@@ -203,7 +203,7 @@ setInterval(() => { const c = tzClock(); for (const r of Object.values(S.routine
 export const api = {
   async bootstrap() { ensureSeed(); return { bots: listBots(), settings: S.settings, skills: Object.values(S.skills), routines: Object.values(S.routines), connections: S.connections, apps: APPS, catalog: { shapes: SHAPES, palette: PALETTE, states: STATES, triggerKinds: TRIGGER_KINDS }, engine: 'simulation', computer: computerSnap() }; },
   async bot(id: string) { const b = S.bots[id]; return { bot: b, messages: S.messages[id] || [], memory: S.memory[id] || [], busy: active.has(id), routines: Object.values(S.routines).filter((r: any) => r.botId === id) }; },
-  async createBot(p: any) { const b = bot({ kind: p.kind === 'group' ? 'group' : 'bot', name: (p.name || 'New Bot').slice(0, 60), title: (p.title || '').slice(0, 80), shape: SHAPES.includes(p.shape) ? p.shape : 'blob', color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : PALETTE[Math.floor(Math.random() * PALETTE.length)], avatarImage: p.avatarImage || null, members: Array.isArray(p.members) ? p.members : [] }); S.bots[b.id] = b; S.messages[b.id] = [{ id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `Hi — I’m ${b.name}. Tell me what to own and I’ll keep at it between chats.`, ts: now() }]; save(); emit('bots', listBots()); return b; },
+  async createBot(p: any) { const b = bot({ kind: p.kind === 'group' ? 'group' : 'bot', name: (p.name || '新しいBot').slice(0, 60), title: (p.title || '').slice(0, 80), shape: SHAPES.includes(p.shape) ? p.shape : 'blob', color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : PALETTE[Math.floor(Math.random() * PALETTE.length)], avatarImage: p.avatarImage || null, members: Array.isArray(p.members) ? p.members : [] }); S.bots[b.id] = b; S.messages[b.id] = [{ id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `はじめまして、${b.name}です。任せたい役割を教えてください。会話の合間も作業を続けます。`, ts: now() }]; save(); emit('bots', listBots()); return b; },
   async patchBot(id: string, p: any) { const b = S.bots[id]; if (!b) return; for (const k of ['name', 'title', 'shape', 'color', 'avatarImage', 'pinned', 'hidden', 'members', 'apps']) if (k in p) b[k] = p[k]; b.updatedAt = now(); save(); emit('bots', listBots()); emit('bot', b); return b; },
   async deleteBot(id: string) { delete S.bots[id]; delete S.messages[id]; delete S.memory[id]; for (const r of Object.values(S.routines) as any[]) if (r.botId === id) delete S.routines[r.id]; if (S.settings.primaryBotId === id) S.settings.primaryBotId = listBots()[0]?.id || null; save(); emit('bots', listBots()); return { ok: true }; },
   async send(id: string, text: string, files?: any[]) { const b = S.bots[id]; if (!b) return; const msg = { id: uid('m_'), role: 'user', botId: id, type: 'text', text, files: files || [], ts: now() }; (S.messages[id] ||= []).push(msg); save(); emit('message', msg); runTurn(b, text); return msg; },
@@ -229,5 +229,5 @@ export const api = {
   async computerAct(_k: string, _a: any, _b?: string) { return computerSnap(); },
   async takeover(on: boolean, botId?: string) { computer.status = on ? 'takeover' : 'idle'; computer.activeBotId = botId; emit('computer', computerSnap()); return computerSnap(); },
   async uploadFile(name: string, mime: string, dataUrl: string) { const id = uid('file_'); const meta = { id, name, mime, size: Math.round((dataUrl.length * 3) / 4), ts: now(), dataUrl }; S.files[id] = meta; save(); return { id, name, mime, size: meta.size, ts: meta.ts }; },
-  async genAvatar(prompt: string) { let h = 0; for (const c of prompt) h = (h * 31 + c.charCodeAt(0)) >>> 0; return { shape: SHAPES[h % SHAPES.length], color: PALETTE[(h >> 5) % PALETTE.length], note: 'Generated from description (shape + colour). Image generation is not wired up in this build.' }; },
+  async genAvatar(prompt: string) { let h = 0; for (const c of prompt) h = (h * 31 + c.charCodeAt(0)) >>> 0; return { shape: SHAPES[h % SHAPES.length], color: PALETTE[(h >> 5) % PALETTE.length], note: '説明から生成しました（形状＋色）。画像生成は本ビルドでは未対応です。' }; },
 };

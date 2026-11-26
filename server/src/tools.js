@@ -57,7 +57,7 @@ export function makeTools(bot) {
     async saveMemory(kind, text) {
       const item = { id: uid('mem_'), kind, text, ts: now() };
       db.addMemory(bot.id, item);
-      post(bot, { type: 'memory', memory: item, text: `Saved to memory: ${text}` });
+      post(bot, { type: 'memory', memory: item, text: `メモリに保存: ${text}` });
       return item;
     },
 
