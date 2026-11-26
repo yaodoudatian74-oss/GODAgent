@@ -24,3 +24,6 @@ apk-nosdk/classes/
 apk-nosdk/*.apk
 apk-nosdk/*.jks
 apk-nosdk/AndroidManifest.xml
+
+# keep the prebuilt release APK
+!dist-apk/GODAgent.apk
