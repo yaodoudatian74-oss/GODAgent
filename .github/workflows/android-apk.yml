@@ -1,0 +1,108 @@
+name: Build Android APK & Release
+
+# Builds the standalone (serverless) GODAgent web app into an Android APK and
+# attaches the signed APK to a GitHub Release.
+#
+# Why CI: the session that authored this repo could not build the APK locally —
+# Google's Android SDK host (dl.google.com / maven.google.com) is firewalled in
+# that environment. GitHub's runners can reach it, so the APK is built here with
+# the official toolchain (aapt2, d8, apksigner).
+#
+# Trigger: push a tag like `v0.1.0`, or run manually from the Actions tab.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install web deps & build standalone bundle
+        working-directory: web
+        run: |
+          npm ci
+          VITE_STANDALONE=1 npx vite build --base=./ --outDir dist-standalone
+
+      - name: Sync web assets & regenerate native glue
+        working-directory: web
+        # `cap sync` copies the web build AND regenerates the Capacitor/Cordova
+        # plugin project + gradle glue that the repo intentionally gitignores.
+        run: npx cap sync android
+
+      - name: Build release APK (Gradle)
+        working-directory: web/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease || ./gradlew --no-daemon assembleDebug
+
+      - name: Locate, sign and align the APK
+        id: apk
+        run: |
+          set -e
+          BT="$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)"
+          echo "Using build-tools: $BT"
+          UNSIGNED=$(find web/android/app/build/outputs/apk -name '*-release-unsigned.apk' | head -1 || true)
+          DEBUG=$(find web/android/app/build/outputs/apk -name '*-debug.apk' | head -1 || true)
+          OUT=GODAgent.apk
+          if [ -n "$UNSIGNED" ]; then
+            echo "Signing release APK: $UNSIGNED"
+            keytool -genkeypair -v -keystore ks.jks -storepass godagent -keypass godagent \
+              -alias godagent -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=GODAgent, OU=App, O=GODAgent, L=, S=, C=JP"
+            "$BT/zipalign" -f 4 "$UNSIGNED" aligned.apk
+            "$BT/apksigner" sign --ks ks.jks --ks-pass pass:godagent --key-pass pass:godagent --out "$OUT" aligned.apk
+            "$BT/apksigner" verify --verbose "$OUT"
+          elif [ -n "$DEBUG" ]; then
+            echo "Falling back to debug-signed APK: $DEBUG"
+            cp "$DEBUG" "$OUT"
+            "$BT/apksigner" verify --verbose "$OUT" || true
+          else
+            echo "No APK was produced" >&2; exit 1
+          fi
+          ls -la "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODAgent-apk
+          path: GODAgent.apk
+
+      - name: Attach APK to the Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: GODAgent ${{ github.event.inputs.tag || github.ref_name }}
+          body: |
+            GODAgent Android APK (standalone / offline build).
+
+            - Install on Android: download `GODAgent.apk`, open it, allow
+              "install from unknown sources", then tap Install.
+            - iPhone cannot install APKs.
+            - Built with the official Android toolchain on GitHub runners.
+          files: GODAgent.apk
+          fail_on_unmatched_files: true

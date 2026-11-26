@@ -97,6 +97,21 @@ explicit binary; the server already falls back to `/opt/pw-browsers/chromium`.
 If it still can't start, the Computer panel reports it as unavailable rather than
 showing a fake screen.
 
+## Android APK (offline)
+
+A standalone, **serverless** build runs fully offline inside a Capacitor WebView
+(`web/src/standalone/backend.ts` replaces the server with an in‑browser engine +
+`localStorage`). The signed **`GODAgent.apk`** is built by GitHub Actions and
+attached to a GitHub Release — see [`docs/BUILD-APK.md`](docs/BUILD-APK.md).
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0   # triggers the APK build + Release
+# or, with the Android SDK installed:
+scripts/build-apk.sh                       # → ./GODAgent.apk
+```
+
+Build the offline bundle alone with: `cd web && VITE_STANDALONE=1 npx vite build --base=./ --outDir dist-standalone`.
+
 ## Tests
 
 ```bash

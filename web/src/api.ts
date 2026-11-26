@@ -1,4 +1,9 @@
 // Thin REST + SSE client for the GODAgent server.
+// In a standalone build (VITE_STANDALONE=1 — used for the APK / offline PWA)
+// the whole backend runs in the browser instead; see standalone/backend.ts.
+import * as standalone from './standalone/backend';
+export const STANDALONE = !!(import.meta as any).env?.VITE_STANDALONE;
+
 const J = { 'content-type': 'application/json' };
 async function req(path: string, opts?: RequestInit) {
   const r = await fetch(path, opts);
@@ -7,7 +12,7 @@ async function req(path: string, opts?: RequestInit) {
   return ct.includes('json') ? r.json() : r.text();
 }
 
-export const api = {
+const remoteApi = {
   bootstrap: () => req('/api/bootstrap'),
   bot: (id: string) => req(`/api/bots/${id}`),
   createBot: (b: any) => req('/api/bots', { method: 'POST', headers: J, body: JSON.stringify(b) }),
@@ -48,10 +53,14 @@ export const api = {
 };
 
 export type StreamHandler = (event: string, data: any) => void;
-export function openStream(botId: string | '*', onEvent: StreamHandler) {
+function remoteOpenStream(botId: string | '*', onEvent: StreamHandler) {
   const es = new EventSource(`/api/stream?botId=${encodeURIComponent(botId)}`);
   const names = ['hello', 'message', 'message.delta', 'message.done', 'message.update', 'state', 'bot',
     'bots', 'settings', 'routines', 'skills', 'connections', 'memory', 'computer', 'routine.run'];
   for (const n of names) es.addEventListener(n, (e: MessageEvent) => { try { onEvent(n, JSON.parse(e.data)); } catch {} });
   return () => es.close();
 }
+
+// Pick the real (server) or standalone (in-browser) backend at build time.
+export const api: any = STANDALONE ? (standalone as any).api : remoteApi;
+export const openStream = STANDALONE ? (standalone as any).openStream : remoteOpenStream;

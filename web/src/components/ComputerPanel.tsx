@@ -24,9 +24,11 @@ export function ComputerPanel() {
                 <span style={{ display: 'flex', gap: 6 }}><i style={dot('#ff5f57')} /><i style={dot('#febc2e')} /><i style={dot('#28c840')} /></span>
                 <span className="url">{c.url || 'about:blank'}</span>
               </div>
-              {c.shot
-                ? <img className="browser-shot" src={c.shot} alt="live screenshot" />
-                : <div className="browser-shot" style={{ display: 'grid', placeItems: 'center', color: 'var(--text-faint)', minHeight: 280 }}>Idle</div>}
+              {c.mode === 'iframe' && c.url && c.url !== 'about:blank'
+                ? <iframe className="browser-shot" src={c.url} title="computer" style={{ border: 0, height: 360, pointerEvents: takeover ? 'auto' : 'none' }} />
+                : c.shot
+                  ? <img className="browser-shot" src={c.shot} alt="live screenshot" />
+                  : <div className="browser-shot" style={{ display: 'grid', placeItems: 'center', color: 'var(--text-faint)', minHeight: 280 }}>Idle</div>}
             </div>
             <div className="btn-row">
               {!takeover
