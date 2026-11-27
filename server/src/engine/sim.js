@@ -43,6 +43,39 @@ export async function runSimTurn(bot, userText, { signal } = {}) {
     T.done(); return;
   }
 
+  // 3.5) creative teams + DeepResearch
+  if (has(t, '画像', 'image', 'イラスト', 'ロゴ', 'ビジュアル', 'アイコン', 'icon', '壁紙')) {
+    await T.reply('承知しました。要件に合わせてオリジナルのキービジュアルを生成します。', { signal });
+    await T.genImage(userText.slice(0, 40), userText.slice(0, 40));
+    await T.reply('生成しました。配色違いや構図違いのバリエーションも出せます。方向性はいかがですか？', { signal });
+    T.done(); return;
+  }
+  if (has(t, '動画', 'video', 'ビデオ', '映像', 'ムービー')) {
+    await T.reply('承知しました。まず絵コンテとナレーション案を用意します。', { signal });
+    await T.computerOpen('web', '参考となる映像表現をリサーチします。');
+    await T.reply('絵コンテ（6カット）\n1. タイトルロゴ\n2. 課題の提示\n3. 解決の提案\n4. 主要機能のデモ\n5. 利用シーン\n6. CTA・締め\n\n尺は30秒想定です。実際の書き出しは本ビルドでは未接続のため、構成案までを提供します。この方向で進めますか？', { signal });
+    T.done(); return;
+  }
+  if (has(t, 'ゲーム', 'game')) {
+    await T.reply('承知しました。企画からプロトタイプ方針までまとめます。', { signal });
+    await T.genImage('game key visual ' + userText.slice(0, 24), 'コンセプトアート（自動生成）');
+    await T.reply('企画概要\n・コアループ：操作→挑戦→報酬→強化の反復\n・操作：タッチ主体、片手で完結\n・プロト範囲：1ステージ＋基本操作\n\nオリジナル要素のみで構成し、既存作品のキャラクター・名称・ロゴは使いません。プロトタイプに進めてよろしいですか？', { signal });
+    T.done(); return;
+  }
+  if (has(t, 'アプリ', 'app', 'webアプリ')) {
+    await T.reply('承知しました。要件と画面構成をまとめ、開発に着手できる状態にします。', { signal });
+    await T.computerOpen('web', '類似サービスと技術選定をリサーチします。');
+    await T.reply('要件サマリ\n・主要画面：一覧／詳細／作成／設定\n・技術：React + TypeScript、必要に応じてPWA/APK化\n・データ：まずは端末内保存、拡張でクラウド\n\nリポジトリ準備まで想定しています。優先順位を決めて着手しますか？', { signal });
+    T.done(); return;
+  }
+  if (has(t, 'ディープ', 'deep research', 'deepresearch', '徹底的', '詳しく調べ', '深掘り', '徹底調査', '調査して')) {
+    await T.reply('DeepResearch を開始します。複数の情報源を横断し、出典つきで要点をまとめます。', { signal });
+    await T.computerOpen('web', '一次情報と信頼できる情報源を収集します。');
+    await T.computerOpen('web', '異なる情報源を照合・検証します。');
+    await T.reply(`調査レポート：${userText.slice(0, 40)}\n\n要点\n1. 全体像：主要な論点を整理。\n2. 根拠：複数の情報源で裏付けの取れた事実を優先。\n3. 相違点：食い違う箇所は注記。\n\n出典（例）：acme-research.example / marketpulse.example / contextwire.example\n\n※サンドボックスのため実際の外部Web取得は行わず、調査フローを再現しています。`, { signal });
+    T.done(); return;
+  }
+
   // 4) computer + outbound work (sign in, browse, draft, send)
   if (has(t, 'sign in', 'log in', 'login', 'salesforce', 'crm', 'accounts', 'サインイン', 'ログイン', '顧客')) {
     await T.reply('接続状況を確認します。Hex・Gmail・LinkedIn はサインイン済みですが、Salesforce は未サインインです。', { signal });
@@ -83,6 +116,11 @@ export async function runSimTurn(bot, userText, { signal } = {}) {
   if (role.includes('recruit') || role.includes('採用') || bot.name.includes('Talent') || bot.name.includes('採用')) reply = '候補者の探索、あなたの文体での紹介文の下書き、各やり取りのフォローまで対応できます。探索を始めましょうか？';
   else if (role.includes('finance') || role.includes('経費') || bot.name.includes('Expense') || bot.name.includes('経費')) reply = '経費の申請を管理し、規定外のものがあれば指摘します。領収書をお預けいただければ、こちらで進めます。';
   else if (role.includes('email') || role.includes('メール') || bot.name.includes('Inbox') || bot.name.includes('受信')) reply = '受信トレイをゼロにし、返信を下書きし、要対応のものは保留できます。いま一巡しましょうか？';
+  else if (bot.name.includes('ゲーム')) reply = 'ゲーム制作チームです。企画・コアループ設計・操作仕様・プロトタイプまで対応します（すべてオリジナルで制作します）。作りたいゲームのジャンルやテーマを教えてください。';
+  else if (bot.name.includes('動画')) reply = '動画制作チームです。絵コンテ・ナレーション案・構成までまとめます。尺・用途・雰囲気を教えてください。';
+  else if (bot.name.includes('画像')) reply = '画像制作です。説明からオリジナルのキービジュアルを生成します。作りたい画像の内容・配色・用途を教えてください。';
+  else if (bot.name.includes('アプリ')) reply = 'アプリ制作チームです。要件定義・画面構成・技術選定・リポジトリ準備まで対応します。作りたいアプリの概要を教えてください。';
+  else if (role.includes('deepresearch') || bot.name.includes('リサーチ')) reply = 'DeepResearch です。複数の情報源を横断し、出典つきで要点をまとめます。調べたいテーマを教えてください。';
   else reply = 'はじめまして。どのような役割でお役に立てばよいでしょう。具体的なご依頼でも、全般的なサポートでも対応します。';
   await T.reply(reply, { signal });
   T.done();

@@ -61,6 +61,11 @@ function ensureSeed() {
     { name: 'アカウント管理', title: 'カスタマーサクセス', shape: 'circle', color: '#8E44AD', last: 'Vicky に招待を送付、Globex のメモを追加しました。' },
     { name: '採用スカウト', title: '採用', shape: 'teardrop', color: '#1183FF', last: 'あなたの文体で紹介文を3件下書きし、確認用に保留しています。' },
     { name: '経費管理', title: '財務オペ', shape: 'circle', color: '#FF6702', last: 'レポートを提出。領収書9件、規定外はありません。' },
+    { name: 'ゲーム制作チーム', title: 'ゲーム開発', shape: 'star', color: '#7C5CFF', last: '企画書と操作仕様をまとめました。プロトタイプに進めます。' },
+    { name: '動画制作チーム', title: '動画編集・生成', shape: 'sparkle', color: '#E0245E', last: '絵コンテ6カットを用意しました。ナレーション案も添えています。' },
+    { name: '画像制作', title: '画像生成', shape: 'flower', color: '#00B5C9', last: 'キービジュアル案を生成しました。バリエーションも出せます。' },
+    { name: 'アプリ制作チーム', title: 'アプリ開発', shape: 'square', color: '#1183FF', last: '要件と画面構成をまとめ、リポジトリ準備まで完了です。' },
+    { name: 'ディープリサーチ', title: 'DeepResearch', shape: 'clover', color: '#2E7D32', last: '5件の情報源を横断し、要点と出典をまとめました。' },
   ];
   const created = seed.map((s) => {
     const b = bot({ name: s.name, title: s.title, shape: s.shape, color: s.color, pinned: !!s.pinned });
@@ -74,7 +79,14 @@ function ensureSeed() {
   const g = bot({ kind: 'group', name: '合宿チーム', title: 'グループ', shape: 'flower', color: '#93643A', members: created.slice(0, 3).map((b) => b.id) });
   S.bots[g.id] = g; S.messages[g.id] = [{ id: uid('m_'), role: 'bot', botId: created[0].id, type: 'text', text: '残るはパイプラインですね。フォローアップ用に専任のBotを立ち上げます。', ts: now() - 3600000 }];
   S.settings.primaryBotId = created[0].id;
-  S.skills[`sk`] = { id: uid('skill_'), name: '週次ステータスまとめ', description: '各プロジェクトの今週の進捗をまとめ、ダイジェストを投稿する。', steps: ['接続済みアプリから更新を収集', 'プロジェクトごとに分類', '短いダイジェストを下書き', '投稿前に承認を仰ぐ'], inputs: ['week'], scope: 'account', ts: now() };
+  const skills = [
+    { name: '週次ステータスまとめ', description: '各プロジェクトの今週の進捗をまとめ、ダイジェストを投稿する。', steps: ['接続済みアプリから更新を収集', 'プロジェクトごとに分類', '短いダイジェストを下書き', '投稿前に承認を仰ぐ'] },
+    { name: 'DeepResearch', description: '複数の情報源を横断し、出典つきで要点をまとめる深掘り調査。', steps: ['問いを分解', 'Webで複数ソースを収集', '相互に照合・検証', '出典つきの要約を作成'] },
+    { name: 'ゲーム企画', description: 'コンセプト・コアループ・操作仕様をまとめ、プロトタイプ方針を決める。', steps: ['テーマ決め', 'コアループ設計', '操作・UI仕様', 'プロト範囲の切り出し'] },
+    { name: '画像生成', description: '説明からオリジナルのキービジュアルを生成し、バリエーションを出す。', steps: ['要件の確認', '構図・配色の決定', '画像を生成', 'バリエーション展開'] },
+    { name: 'アプリ要件定義', description: '要件・画面構成・技術選定をまとめ、開発に着手できる状態にする。', steps: ['要件ヒアリング', '画面構成', '技術選定', 'リポジトリ準備'] },
+  ];
+  for (const s of skills) S.skills[uid('skill_')] = { id: uid('skill_'), scope: 'account', inputs: [], ts: now(), ...s };
   const r = { id: uid('rtn_'), botId: created[0].id, name: '朝のブリーフィング', trigger: { kind: 'daily', at: '08:30' }, skillId: null, prompt: '短い朝のブリーフィングをください。', enabled: true, lastRun: null, runs: [], ts: now() };
   S.routines[r.id] = r;
   save();
@@ -150,8 +162,41 @@ function tools(b: any) {
       return { ok: true, url: computer.url };
     },
     async handoff(toBotId: string, task: string) { const to = S.bots[toBotId]; if (!to) return; post(b, { type: 'handoff', handoff: { toBotId, toName: to.name, task } }); return to; },
+    async genImage(prompt: string, caption?: string) {
+      const svg = makeImage(prompt);
+      const dataUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+      return post(b, { type: 'image', img: { dataUrl, caption: caption || prompt } });
+    },
     done() { setState(b, 'done'); setTimeout(() => setState(b, 'idle'), 2600); },
   };
+}
+
+// Generate an ORIGINAL abstract key-visual (SVG) from a prompt. Deterministic
+// from the text; never depicts any real or copyrighted character.
+function makeImage(prompt: string): string {
+  let h = 2166136261 >>> 0;
+  for (const c of prompt) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const rnd = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; };
+  const hue = Math.floor(rnd() * 360), hue2 = (hue + 60 + Math.floor(rnd() * 180)) % 360;
+  const W = 640, Hh = 400;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${Hh}" viewBox="0 0 ${W} ${Hh}">`;
+  s += `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">`;
+  s += `<stop offset="0" stop-color="hsl(${hue},70%,55%)"/><stop offset="1" stop-color="hsl(${hue2},70%,45%)"/></linearGradient>`;
+  s += `<radialGradient id="r" cx="0.3" cy="0.3" r="0.9"><stop offset="0" stop-color="rgba(255,255,255,0.35)"/><stop offset="1" stop-color="rgba(0,0,0,0.25)"/></radialGradient></defs>`;
+  s += `<rect width="${W}" height="${Hh}" fill="url(#g)"/>`;
+  const n = 5 + Math.floor(rnd() * 5);
+  for (let i = 0; i < n; i++) {
+    const cx = rnd() * W, cy = rnd() * Hh, rr = 30 + rnd() * 140;
+    const op = (0.08 + rnd() * 0.22).toFixed(2);
+    const col = `hsl(${(hue + Math.floor(rnd() * 120)) % 360},80%,${50 + Math.floor(rnd() * 30)}%)`;
+    if (rnd() < 0.5) s += `<circle cx="${cx.toFixed(0)}" cy="${cy.toFixed(0)}" r="${rr.toFixed(0)}" fill="${col}" opacity="${op}"/>`;
+    else { const w = rr, hgt = rr * (0.4 + rnd()); s += `<rect x="${(cx - w / 2).toFixed(0)}" y="${(cy - hgt / 2).toFixed(0)}" width="${w.toFixed(0)}" height="${hgt.toFixed(0)}" rx="${(rr * 0.3).toFixed(0)}" fill="${col}" opacity="${op}" transform="rotate(${(rnd() * 90 - 45).toFixed(0)} ${cx.toFixed(0)} ${cy.toFixed(0)})"/>`; }
+  }
+  s += `<rect width="${W}" height="${Hh}" fill="url(#r)"/>`;
+  const label = (prompt || 'GODAgent').slice(0, 28).replace(/[<>&]/g, '');
+  s += `<text x="${W / 2}" y="${Hh - 28}" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="rgba(255,255,255,0.95)">${label}</text>`;
+  s += `</svg>`;
+  return s;
 }
 
 // ---- simulation engine (port of server sim) -----------------------------
@@ -171,6 +216,42 @@ async function plan(b: any, userText: string) {
     if (members[1]) { await T.handoff(members[1].id, userText.slice(0, 120)); await sleep(400); const sub = tools(members[1]); await sub.reply(`引き継ぎました。「${userText.slice(0, 60)}」を担当し、完了後にご報告します。`); sub.done(); }
     return T.done();
   }
+  // --- 画像制作 ---
+  if (has(t, '画像', 'image', 'イラスト', 'ロゴ', 'ビジュアル', 'アイコン', 'icon', '壁紙')) {
+    await T.reply('承知しました。要件に合わせてオリジナルのキービジュアルを生成します。');
+    await T.genImage(userText.slice(0, 40), userText.slice(0, 40));
+    await T.reply('生成しました。配色違いや構図違いのバリエーションも出せます。方向性はいかがですか？');
+    return T.done();
+  }
+  // --- 動画制作 ---
+  if (has(t, '動画', 'video', 'ビデオ', '映像', 'ムービー')) {
+    await T.reply('承知しました。まず絵コンテとナレーション案を用意します。');
+    await T.computerOpen('web', '参考となる映像表現をリサーチします。');
+    await T.reply('絵コンテ（6カット）\n1. タイトルロゴ（フェードイン）\n2. 課題の提示\n3. 解決の提案\n4. 主要機能のデモ\n5. 利用シーン\n6. CTA・締め\n\nナレーション案も添えました。尺は30秒想定です。実際の書き出しエンジンは本ビルドでは未接続のため、構成案までを提供します。この方向で進めますか？');
+    return T.done();
+  }
+  // --- ゲーム制作 ---
+  if (has(t, 'ゲーム', 'game')) {
+    await T.reply('承知しました。企画からプロトタイプ方針までまとめます。');
+    await T.genImage('game key visual ' + userText.slice(0, 24), 'コンセプトアート（自動生成）');
+    await T.reply('企画概要\n・コンセプト：ご依頼の世界観をベースにした短時間で遊べる作品\n・コアループ：操作→挑戦→報酬→強化の反復\n・操作：タッチ主体、片手で完結\n・プロト範囲：1ステージ＋基本操作\n\nオリジナル要素のみで構成し、既存作品のキャラクター・名称・ロゴは使いません。プロトタイプに進めてよろしいですか？');
+    return T.done();
+  }
+  // --- アプリ制作 ---
+  if (has(t, 'アプリ', 'app', 'アプリ制作', 'webアプリ')) {
+    await T.reply('承知しました。要件と画面構成をまとめ、開発に着手できる状態にします。');
+    await T.computerOpen('web', '類似サービスと技術選定をリサーチします。');
+    await T.reply('要件サマリ\n・目的：ご依頼の課題を解決するアプリ\n・主要画面：一覧／詳細／作成／設定\n・技術：React + TypeScript（Web）、必要に応じてPWA/APK化\n・データ：まずは端末内保存、拡張でクラウド\n\nリポジトリ準備まで想定しています。要件の優先順位を決めて着手しますか？');
+    return T.done();
+  }
+  // --- DeepResearch（深掘り調査）---
+  if (has(t, 'ディープ', 'deep research', 'deepresearch', '徹底的', '詳しく調べ', '深掘り', '徹底調査', '調査して')) {
+    await T.reply('DeepResearch を開始します。複数の情報源を横断し、出典つきで要点をまとめます。');
+    await T.computerOpen('web', '一次情報と信頼できる情報源を収集します。');
+    await T.computerOpen('web', '異なる情報源を照合・検証します。');
+    await T.reply(`調査レポート：${userText.slice(0, 40)}\n\n要点\n1. 全体像：主要な論点を3点に整理しました。\n2. 根拠：複数の情報源で裏付けの取れた事実を優先。\n3. 相違点：情報源間で食い違う箇所は注記しました。\n\n出典（例）\n・acme-research.example\n・marketpulse.example\n・contextwire.example\n\n※本ビルドはサンドボックスのため実際の外部Web取得は行わず、調査フローを再現しています。さらに深掘りする論点を指定いただければ続けます。`);
+    return T.done();
+  }
   if (has(t, 'sign in', 'log in', 'login', 'salesforce', 'crm', 'accounts', 'サインイン', 'ログイン', '顧客')) { await T.reply('接続状況を確認します。Hex・Gmail・LinkedIn はサインイン済みですが、Salesforce は未サインインです。'); await T.computerOpen('salesforce', '担当アカウントを確認するため、Salesforce にサインインします。'); await T.reply('サインインしました。担当アカウントが6件あります。アウトリーチの下書きを始めますか？'); return T.done(); }
   if (has(t, 'research', 'prospect', 'pipeline', 'outbound', 'outreach', 'web', 'search', 'リサーチ', '調べ', '営業', 'パイプライン')) {
     await T.reply('開始します。対象の見込み客を抽出し、Webで背景を収集して、あなたの文体で下書きします。');
@@ -187,6 +268,11 @@ async function plan(b: any, userText: string) {
   if (role.includes('recruit') || role.includes('採用') || b.name.includes('Talent') || b.name.includes('採用')) reply = '候補者の探索、あなたの文体での紹介文の下書き、各やり取りのフォローまで対応できます。探索を始めましょうか？';
   else if (role.includes('finance') || role.includes('経費') || b.name.includes('Expense') || b.name.includes('経費')) reply = '経費の申請を管理し、規定外のものがあれば指摘します。領収書をお預けいただければ、こちらで進めます。';
   else if (role.includes('email') || role.includes('メール') || b.name.includes('Inbox') || b.name.includes('受信')) reply = '受信トレイをゼロにし、返信を下書きし、要対応のものは保留できます。いま一巡しましょうか？';
+  else if (b.name.includes('ゲーム')) reply = 'ゲーム制作チームです。企画・コアループ設計・操作仕様・プロトタイプまで対応します。作りたいゲームのジャンルやテーマを教えてください（すべてオリジナルで制作します）。';
+  else if (b.name.includes('動画')) reply = '動画制作チームです。絵コンテ・ナレーション案・構成までまとめます。尺・用途・雰囲気を教えてください。';
+  else if (b.name.includes('画像')) reply = '画像制作です。説明からオリジナルのキービジュアルを生成します。作りたい画像の内容・配色・用途を教えてください。';
+  else if (b.name.includes('アプリ')) reply = 'アプリ制作チームです。要件定義・画面構成・技術選定・リポジトリ準備まで対応します。作りたいアプリの概要を教えてください。';
+  else if (role.includes('deepresearch') || b.name.includes('リサーチ')) reply = 'DeepResearch です。複数の情報源を横断し、出典つきで要点をまとめます。調べたいテーマを教えてください。';
   else reply = 'はじめまして。どのような役割でお役に立てばよいでしょう。具体的なご依頼でも、全般的なサポートでも対応します。';
   await T.reply(reply); T.done();
 }

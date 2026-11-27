@@ -135,12 +135,43 @@ export function makeTools(bot) {
       return to;
     },
 
+    async genImage(prompt, caption) {
+      const svg = makeImage(prompt);
+      const dataUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+      return post(bot, { type: 'image', img: { dataUrl, caption: caption || prompt } });
+    },
+
     file(meta) { return post(bot, { type: 'file', file: meta }); },
     error(text) { return post(bot, { type: 'error', text }); },
     say(msg) { return post(bot, msg); },
     setState: (s) => setState(bot, s),
     done() { setState(bot, 'done'); setTimeout(() => setState(bot, 'idle'), 2600); },
   };
+}
+
+// Generate an ORIGINAL abstract key-visual (SVG) from a prompt — gradients and
+// geometric shapes only; never depicts any real or copyrighted character.
+function makeImage(prompt) {
+  let h = 2166136261 >>> 0;
+  for (const c of String(prompt)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const rnd = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; };
+  const hue = Math.floor(rnd() * 360), hue2 = (hue + 60 + Math.floor(rnd() * 180)) % 360;
+  const W = 640, Hh = 400;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${Hh}" viewBox="0 0 ${W} ${Hh}">`;
+  s += `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},70%,55%)"/><stop offset="1" stop-color="hsl(${hue2},70%,45%)"/></linearGradient>`;
+  s += `<radialGradient id="r" cx="0.3" cy="0.3" r="0.9"><stop offset="0" stop-color="rgba(255,255,255,0.35)"/><stop offset="1" stop-color="rgba(0,0,0,0.25)"/></radialGradient></defs>`;
+  s += `<rect width="${W}" height="${Hh}" fill="url(#g)"/>`;
+  const n = 5 + Math.floor(rnd() * 5);
+  for (let i = 0; i < n; i++) {
+    const cx = rnd() * W, cy = rnd() * Hh, rr = 30 + rnd() * 140, op = (0.08 + rnd() * 0.22).toFixed(2);
+    const col = `hsl(${(hue + Math.floor(rnd() * 120)) % 360},80%,${50 + Math.floor(rnd() * 30)}%)`;
+    if (rnd() < 0.5) s += `<circle cx="${cx.toFixed(0)}" cy="${cy.toFixed(0)}" r="${rr.toFixed(0)}" fill="${col}" opacity="${op}"/>`;
+    else { const w = rr, hgt = rr * (0.4 + rnd()); s += `<rect x="${(cx - w / 2).toFixed(0)}" y="${(cy - hgt / 2).toFixed(0)}" width="${w.toFixed(0)}" height="${hgt.toFixed(0)}" rx="${(rr * 0.3).toFixed(0)}" fill="${col}" opacity="${op}" transform="rotate(${(rnd() * 90 - 45).toFixed(0)} ${cx.toFixed(0)} ${cy.toFixed(0)})"/>`; }
+  }
+  s += `<rect width="${W}" height="${Hh}" fill="url(#r)"/>`;
+  const label = String(prompt || 'GODAgent').slice(0, 28).replace(/[<>&]/g, '');
+  s += `<text x="${W / 2}" y="${Hh - 28}" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="rgba(255,255,255,0.95)">${label}</text></svg>`;
+  return s;
 }
 
 export { post, setState };

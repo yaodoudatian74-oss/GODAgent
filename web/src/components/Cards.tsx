@@ -8,6 +8,7 @@ export function Card({ m }: { m: Msg }) {
     case 'question': return <QuestionCard m={m} />;
     case 'email': return <EmailCard m={m} />;
     case 'memory': return <MemoryCard m={m} />;
+    case 'image': return <ImageCard m={m} />;
     case 'handoff': return <HandoffCard m={m} />;
     case 'file': return <FileCard m={m} />;
     case 'error': return <ErrorCard m={m} />;
@@ -104,6 +105,17 @@ function MemoryCard({ m }: { m: Msg }) {
     <div className="card2 bot">
       <Head k="メモリ" badge={statusBadge('done')} />
       <div style={{ fontSize: 14 }}>{m.memory?.text}</div>
+    </div>
+  );
+}
+
+function ImageCard({ m }: { m: Msg }) {
+  const img = m.img || {};
+  return (
+    <div className="card2 bot">
+      <Head k="画像" badge={statusBadge('done')} />
+      {img.dataUrl && <img src={img.dataUrl} alt={img.caption || ''} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }} />}
+      {img.caption && <div className="muted" style={{ marginTop: 8 }}>{img.caption}</div>}
     </div>
   );
 }

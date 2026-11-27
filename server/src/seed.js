@@ -35,6 +35,16 @@ const SEED_BOTS = [
     last: 'あなたの文体で紹介文を3件下書きし、確認用に保留しています。' },
   { name: '経費管理', title: '財務オペ', shape: 'circle', color: '#FF6702',
     last: 'レポートを提出。領収書9件、規定外はありません。' },
+  { name: 'ゲーム制作チーム', title: 'ゲーム開発', shape: 'star', color: '#7C5CFF',
+    last: '企画書と操作仕様をまとめました。プロトタイプに進めます。' },
+  { name: '動画制作チーム', title: '動画編集・生成', shape: 'sparkle', color: '#E0245E',
+    last: '絵コンテ6カットを用意しました。ナレーション案も添えています。' },
+  { name: '画像制作', title: '画像生成', shape: 'flower', color: '#00B5C9',
+    last: 'キービジュアル案を生成しました。バリエーションも出せます。' },
+  { name: 'アプリ制作チーム', title: 'アプリ開発', shape: 'square', color: '#1183FF',
+    last: '要件と画面構成をまとめ、リポジトリ準備まで完了です。' },
+  { name: 'ディープリサーチ', title: 'DeepResearch', shape: 'clover', color: '#2E7D32',
+    last: '5件の情報源を横断し、要点と出典をまとめました。' },
 ];
 
 export function ensureSeed() {
@@ -67,12 +77,14 @@ export function ensureSeed() {
   db.setSettings({ primaryBotId: created[0].id });
 
   // one account-level skill
-  db.putSkill({
-    id: uid('skill_'), name: '週次ステータスまとめ',
-    description: '各プロジェクトの今週の進捗をまとめ、ダイジェストを投稿する。',
-    steps: ['接続済みアプリから更新を収集', 'プロジェクトごとに分類', '短いダイジェストを下書き', '投稿前に承認を仰ぐ'],
-    inputs: ['week'], scope: 'account', ts: now(),
-  });
+  const skills = [
+    { name: '週次ステータスまとめ', description: '各プロジェクトの今週の進捗をまとめ、ダイジェストを投稿する。', steps: ['接続済みアプリから更新を収集', 'プロジェクトごとに分類', '短いダイジェストを下書き', '投稿前に承認を仰ぐ'] },
+    { name: 'DeepResearch', description: '複数の情報源を横断し、出典つきで要点をまとめる深掘り調査。', steps: ['問いを分解', 'Webで複数ソースを収集', '相互に照合・検証', '出典つきの要約を作成'] },
+    { name: 'ゲーム企画', description: 'コンセプト・コアループ・操作仕様をまとめ、プロトタイプ方針を決める。', steps: ['テーマ決め', 'コアループ設計', '操作・UI仕様', 'プロト範囲の切り出し'] },
+    { name: '画像生成', description: '説明からオリジナルのキービジュアルを生成し、バリエーションを出す。', steps: ['要件の確認', '構図・配色の決定', '画像を生成', 'バリエーション展開'] },
+    { name: 'アプリ要件定義', description: '要件・画面構成・技術選定をまとめ、開発に着手できる状態にする。', steps: ['要件ヒアリング', '画面構成', '技術選定', 'リポジトリ準備'] },
+  ];
+  for (const s of skills) db.putSkill({ id: uid('skill_'), scope: 'account', inputs: [], ts: now(), ...s });
 
   // one routine on the primary bot
   db.putRoutine({
