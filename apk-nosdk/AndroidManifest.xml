@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.godagent.app"
-    android:versionCode="3"
-    android:versionName="1.2">
+    android:versionCode="4"
+    android:versionName="1.3">
   <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="28" />
   <!-- needed to download Hugging Face models (no account / token) -->
   <uses-permission android:name="android.permission.INTERNET" />
   <application
       android:label="GODAgent"
       android:icon="@mipmap/ic_launcher"
-      android:allowBackup="true">
+      android:allowBackup="true"
+      android:hardwareAccelerated="true"
+      android:largeHeap="true">
     <activity
         android:name=".MainActivity"
         android:exported="true">

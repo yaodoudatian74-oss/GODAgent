@@ -10,12 +10,33 @@ const HF = 'https://huggingface.co';
 
 export interface InstalledModel { id: string; dtype: string; bytes: number; ts: number }
 
+// Smallest first: large models crash low-memory phones (WebView out-of-memory).
 export const RECOMMENDED = [
-  { id: 'onnx-community/Qwen2.5-0.5B-Instruct', label: 'Qwen2.5 0.5B Instruct', note: '日本語対応・おすすめ' },
+  { id: 'HuggingFaceTB/SmolLM2-135M-Instruct', label: 'SmolLM2 135M Instruct', note: 'スマホ向け・最軽量（おすすめ）' },
   { id: 'HuggingFaceTB/SmolLM2-360M-Instruct', label: 'SmolLM2 360M Instruct', note: '軽量・英語向け' },
-  { id: 'HuggingFaceTB/SmolLM2-135M-Instruct', label: 'SmolLM2 135M Instruct', note: '最軽量・英語向け' },
-  { id: 'onnx-community/Llama-3.2-1B-Instruct', label: 'Llama 3.2 1B Instruct', note: '高性能・サイズ大' },
+  { id: 'onnx-community/Qwen2.5-0.5B-Instruct', label: 'Qwen2.5 0.5B Instruct', note: '日本語対応・やや大きい' },
+  { id: 'onnx-community/Llama-3.2-1B-Instruct', label: 'Llama 3.2 1B Instruct', note: '高性能・サイズ大（低メモリ端末は不可）' },
 ];
+
+// Approximate device RAM in GB (0.25–8, rounded by the browser), or null if unknown.
+export function deviceMemoryGB(): number | null {
+  const d = typeof navigator !== 'undefined' ? (navigator as any).deviceMemory : undefined;
+  return typeof d === 'number' ? d : null;
+}
+
+// Whether a model of this download size is likely to crash the device when loaded.
+// Loading an ONNX model needs roughly 2.5x its file size in live memory during
+// session init; a WebView that runs out of memory kills the page (the app
+// "restarts"). We compare that estimate to the device's RAM when it is known.
+export function memoryRisk(bytes: number): 'ok' | 'risky' | 'danger' {
+  if (!bytes) return 'ok';
+  const needGB = (bytes * 2.5) / 1e9;
+  const gb = deviceMemoryGB();
+  if (gb == null) return bytes > 6e8 ? 'danger' : bytes > 3.5e8 ? 'risky' : 'ok';
+  if (needGB > gb * 0.6) return 'danger';
+  if (needGB > gb * 0.4) return 'risky';
+  return 'ok';
+}
 
 // ---- library (lazy) ------------------------------------------------------
 let tf: any = null;

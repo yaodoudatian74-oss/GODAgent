@@ -27,6 +27,9 @@ export function ModelsPane() {
         Hugging Face の公開モデルを端末にダウンロードし、Bot がそのモデルで応答します。<b>ログイン・トークンは不要</b>です。
         初回だけ通信が必要で、以後はオフラインで動作します。{hf.hasWebGPU() ? '（WebGPU が使える端末では自動的に高速化します）' : '（WebAssembly で動作します）'}
       </div>
+      <div className="muted" style={{ marginBottom: 12, background: 'var(--card, rgba(127,127,127,.08))', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', fontSize: 13 }}>
+        ⚠ スマホでは<b>軽量モデル（SmolLM2 135M）</b>をおすすめします。大きいモデルは読み込み時にメモリを多く使い、端末によっては<b>アプリが落ちる（再起動する）</b>ことがあります。大きいモデルはダウンロード前に確認が表示されます。
+      </div>
       {!STANDALONE && <div className="muted" style={{ marginBottom: 12, color: 'var(--danger)' }}>※ サーバー版では Bot への割り当てはできません。アプリ版（APK／オフライン版）でご利用ください。</div>}
 
       <div className="field"><label>既定のモデル（Bot ごとの指定が無い場合）</label>
@@ -86,6 +89,15 @@ function ModelRow({ row, installed, onDone }: { row: Row; installed: boolean; on
   }, [row.id]);
 
   async function download() {
+    const risk = info ? hf.memoryRisk(info.bytes) : 'ok';
+    if (risk !== 'ok') {
+      const gb = hf.deviceMemoryGB();
+      const mem = gb ? `この端末のメモリは約${gb}GBです。` : '';
+      const head = risk === 'danger'
+        ? `このモデルは大きく、${mem}読み込み中にメモリ不足でアプリが落ちる可能性が高いです。`
+        : `このモデルはやや大きく、${mem}端末によっては読み込み中にアプリが落ちることがあります。`;
+      if (!confirm(`${head}\nより軽量なモデル（SmolLM2 135M など）をおすすめします。\n\nそれでもダウンロードしますか？`)) return;
+    }
     setErr(''); setPct(0);
     try {
       await hf.load(row.id, info?.dtype, (p) => setPct(p.pct));
@@ -100,6 +112,7 @@ function ModelRow({ row, installed, onDone }: { row: Row; installed: boolean; on
         <div className="muted" style={{ wordBreak: 'break-all' }}>
           {row.label ? row.id + '・' : ''}{row.note ? row.note + '・' : ''}
           {info ? `${hf.fmtBytes(info.bytes)}（${info.dtype}）` : infoErr ? infoErr : 'サイズ確認中…'}
+          {info && hf.memoryRisk(info.bytes) === 'danger' ? '・⚠大きい（落ちる可能性）' : info && hf.memoryRisk(info.bytes) === 'risky' ? '・⚠やや大きい' : ''}
           {row.downloads ? `・${row.downloads.toLocaleString()} DL` : ''}
         </div>
         {pct !== null && <div style={{ marginTop: 8 }}>
