@@ -51,6 +51,8 @@ export function Sidebar() {
         <div className="uava">{settings.user?.initials || 'YOU'}</div>
         <span className="uname">{settings.user?.name || 'あなた'}</span>
         <div className="grow" />
+        <button className="icon-btn" title="AIモデル（ダウンロード）" onClick={() => actions.setModal('models')}>🧠</button>
+        <button className="icon-btn" title="プロジェクト" onClick={() => actions.setModal('projects')}>📁</button>
         <button className="icon-btn" title="設定" onClick={() => actions.setModal('settings')}>⚙</button>
       </div>
     </aside>

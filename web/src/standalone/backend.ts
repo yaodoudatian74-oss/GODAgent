@@ -8,6 +8,8 @@
 // rest of the app is unchanged.
 
 import { generate as hfGenerate } from '../localai/hf';
+import { TEAMS, TeamKind, memberShape, memberColor } from './employees';
+import { makeGame, pickGenre, recordVideo } from './deliverables';
 
 type Fn = (...a: any[]) => any;
 
@@ -34,10 +36,10 @@ const APPS = [
 ];
 const APP_BY_ID: Record<string, any> = Object.fromEntries(APPS.map((a) => [a.id, a]));
 
-interface Store { bots: Record<string, any>; messages: Record<string, any[]>; memory: Record<string, any[]>; skills: Record<string, any>; routines: Record<string, any>; connections: Record<string, any>; rules: any[]; files: Record<string, any>; settings: any; }
+interface Store { bots: Record<string, any>; messages: Record<string, any[]>; memory: Record<string, any[]>; skills: Record<string, any>; routines: Record<string, any>; connections: Record<string, any>; rules: any[]; files: Record<string, any>; projects: Record<string, any>; teamGroups?: Record<string, string>; settings: any; }
 
 function emptyStore(): Store {
-  return { bots: {}, messages: {}, memory: {}, skills: {}, routines: {}, connections: {}, rules: [], files: {},
+  return { bots: {}, messages: {}, memory: {}, skills: {}, routines: {}, connections: {}, rules: [], files: {}, projects: {},
     settings: { appearance: 'system', accent: 'auto', language: 'ja', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', autoReview: true, primaryBotId: null, computerPermission: 'ask', defaultModel: 'sim', user: { name: 'あなた', initials: 'YOU' } } };
 }
 
@@ -97,6 +99,7 @@ function ensureSeed() {
   const g = bot({ kind: 'group', name: '合宿チーム', title: 'グループ', shape: 'flower', color: '#93643A', members: created.slice(0, 3).map((b) => b.id) });
   S.bots[g.id] = g; S.messages[g.id] = [{ id: uid('m_'), role: 'bot', botId: created[0].id, type: 'text', text: '残るはパイプラインですね。フォローアップ用に専任のBotを立ち上げます。', ts: now() - 3600000 }];
   S.settings.primaryBotId = created[0].id;
+  seedEmployees();
   const skills = [
     { name: '週次ステータスまとめ', description: '各プロジェクトの今週の進捗をまとめ、ダイジェストを投稿する。', steps: ['接続済みアプリから更新を収集', 'プロジェクトごとに分類', '短いダイジェストを下書き', '投稿前に承認を仰ぐ'] },
     { name: 'DeepResearch', description: '複数の情報源を横断し、出典つきで要点をまとめる深掘り調査。', steps: ['問いを分解', 'Webで複数ソースを収集', '相互に照合・検証', '出典つきの要約を作成'] },
@@ -109,6 +112,28 @@ function ensureSeed() {
   S.routines[r.id] = r;
   save();
 }
+
+// ---- 37 AI employees + 4 team groups ------------------------------------
+function seedEmployees() {
+  let ci = 0;
+  for (const team of TEAMS) {
+    const memberIds: string[] = [];
+    team.members.forEach((m, i) => {
+      const b = bot({ name: m.name, title: m.role, shape: memberShape(ci), color: memberColor(ci), hidden: true, team: team.kind, role: m.role, leader: !!m.leader });
+      ci++;
+      S.bots[b.id] = b;
+      S.messages[b.id] = [{ id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `社長、${m.role}の${m.name}です。${m.skill}を担当します。何なりとお申し付けください。`, ts: now() - 86400000 }];
+      S.memory[b.id] = [{ id: uid('mem_'), kind: 'instruction', text: `${m.role}。${m.persona} 専門：${m.skill}。社長には丁寧に報告する。` , ts: now() }];
+      memberIds.push(b.id);
+    });
+    const g = bot({ kind: 'group', name: team.name, title: `チーム・${team.members.length}人`, shape: team.shape, color: team.color, members: memberIds, teamKind: team.kind });
+    S.bots[g.id] = g;
+    const leader = S.bots[memberIds[0]];
+    S.messages[g.id] = [{ id: uid('m_'), role: 'bot', botId: leader.id, type: 'text', text: `社長、${team.name}です。ご依頼をいただければ、メンバーで分担して制作し、完成物をご確認いただけます。`, ts: now() - 3600000 }];
+    S.teamGroups ||= {}; S.teamGroups[team.kind] = g.id;
+  }
+}
+const teamGroupId = (kind: string) => (S.teamGroups || {})[kind];
 
 // ---- helpers ------------------------------------------------------------
 const listBots = () => Object.values(S.bots).sort((a: any, b: any) => (Number(b.pinned) - Number(a.pinned)) || (b.updatedAt - a.updatedAt));
@@ -228,6 +253,8 @@ async function plan(b: any, userText: string) {
   const modelId: string = b.model || S.settings.defaultModel || 'sim';
   if (modelId.startsWith('hf:') && b.kind !== 'group') { if (await hfTurn(b, modelId.slice(3), userText)) return; }
   const T = tools(b); const t = userText.toLowerCase();
+  // 制作チームのグループに依頼 → 自律プロジェクトを起動
+  if (b.kind === 'group' && b.teamKind) { startProject(b.teamKind, userText); setState(b, 'idle'); return; }
   if (has(t, 'remember', 'always', 'from now on', '覚え', '今後', 'いつも')) { await T.saveMemory('instruction', userText.replace(/^(remember|always|覚えて|今後は?)[:,、\s]*/i, '').trim()); await T.reply('承知しました。今後はそのようにいたします。'); return T.done(); }
   if (has(t, 'which', 'should i', 'option', 'choose', 'どっち', 'どちら', 'どれ', 'べき') && b.kind !== 'group') { const a = await T.askQuestion({ question: '進め方がいくつか考えられます。どれがよろしいですか？', options: ['まず動いて、必要なら後で調整', 'すべて下書きしてから確認を仰ぐ', '最も効果の大きい項目だけ'] }); await T.reply(`承知しました。「${a}」で進めます。開始いたします。`); return T.done(); }
   if (b.kind === 'group') {
@@ -336,6 +363,142 @@ async function hfTurn(b: any, id: string, userText: string): Promise<boolean> {
   }
 }
 
+// ---- autonomous project engine (37 employees) ---------------------------
+const projActive = new Set<string>();
+
+function emitProjects() { emit('projects', Object.values(S.projects).sort((a: any, b: any) => b.createdAt - a.createdAt)); }
+function saveProj(p: any) { p.updatedAt = now(); S.projects[p.id] = p; save(); emit('project', p); emitProjects(); }
+function projLog(p: any, fromId: string, text: string) { p.log.push({ ts: now(), fromId, from: S.bots[fromId]?.name || '', text }); }
+// Group messages route to the GROUP's conversation (botId = groupId); `speaker`
+// records which employee spoke, and text is prefixed with their name so the
+// team chat reads like a real meeting.
+function gpost(groupId: string, memberId: string, msg: any) {
+  const name = S.bots[memberId]?.name || '';
+  const m = { ...msg };
+  if (m.type === 'text' && m.text && name) m.text = `${name}：${m.text}`;
+  const full = { id: uid('m_'), role: 'bot', botId: groupId, speaker: memberId, ts: now(), ...m };
+  (S.messages[groupId] ||= []).push(full); const g = S.bots[groupId]; if (g) g.updatedAt = now(); save(); emit('message', full); return full;
+}
+async function gstream(groupId: string, memberId: string, text: string) {
+  const name = S.bots[memberId]?.name || '';
+  const id = uid('m_'); const base: any = { id, role: 'bot', botId: groupId, speaker: memberId, type: 'text', text: '', ts: now(), streaming: true };
+  (S.messages[groupId] ||= []).push(base); emit('message', base);
+  const full = name ? `${name}：${text}` : text;
+  const words = full.split(/(\s+)/); let acc = '';
+  for (const w of words) { acc += w; base.text = acc; emit('message.delta', { id, text: acc }); await sleep(10 + Math.random() * 18); }
+  base.streaming = false; save(); emit('message.done', { id, text: acc });
+}
+
+export function startProject(teamKind: TeamKind, request: string, existing?: string) {
+  const groupId = teamGroupId(teamKind); if (!groupId) return null;
+  const team = TEAMS.find((t) => t.kind === teamKind)!;
+  const members = team.members.map((m, i) => ({ id: (S.bots[groupId].members || [])[i], role: m.role, name: m.name, leader: !!m.leader }));
+  let p: any;
+  if (existing && S.projects[existing]) { p = S.projects[existing]; p.request = request; p.status = 'planning'; p.progress = 0; p.round = (p.round || 1) + 1; }
+  else p = { id: uid('prj_'), title: request.slice(0, 40), request, teamKind, teamName: team.name, groupId, status: 'planning', progress: 0, round: 1, tasks: [], deliverables: [], log: [], createdAt: now(), updatedAt: now() };
+  const lastUser = [...(S.messages[groupId] || [])].reverse().find((m: any) => m.role === 'user');
+  p.inputFiles = lastUser?.files || [];
+  S.projects[p.id] = p; saveProj(p);
+  if (projActive.has(p.id)) return p.id;
+  projActive.add(p.id);
+  runProject(p, members).catch((e) => { projLog(p, members[0].id, 'エラー: ' + (e?.message || e)); p.status = 'error'; saveProj(p); }).finally(() => projActive.delete(p.id));
+  return p.id;
+}
+const stopped = (p: any) => p.status === 'stopped';
+
+async function runProject(p: any, members: any[]) {
+  const leader = members[0];
+  const set = (status: string, progress: number) => { p.status = status; p.progress = progress; saveProj(p); };
+  // 1) 受領・分析
+  await gstream(p.groupId, leader.id, `社長、ご依頼を承りました。「${p.request.slice(0, 40)}」の制作を開始いたします。まずチームで方針を確認します。`);
+  if (stopped(p)) return;
+  set('working', 8);
+  // 2) 会議（複数社員が発言）
+  const talk = members.slice(1, Math.min(members.length, 5));
+  for (const m of talk) { if (stopped(p)) return; await gstream(p.groupId, m.id, meetingLine(p.teamKind, m.role)); }
+  // 3) 計画（担当割り）
+  p.tasks = members.map((m) => ({ memberId: m.id, name: m.name, role: m.role, status: 'pending', note: '' }));
+  saveProj(p);
+  await gstream(p.groupId, leader.id, '役割を割り当てました。各担当、制作を進めてください。');
+  // 4) 制作（各担当が実作業：ここで本物の成果物を生成）
+  await produce(p, members, set);
+  if (stopped(p)) return;
+  // 5) リーダー品質確認 → 社長へ提出
+  set('review', 100);
+  p.tasks.forEach((t: any) => (t.status = 'done'));
+  await gstream(p.groupId, leader.id, '社長、各担当の制作とチーム内の相互確認が完了いたしました。成果物が完成いたしましたので、ご確認をお願いいたします。問題なければ「承認」、修正点があれば「修正指示」をお願いします。');
+  saveProj(p);
+}
+
+function meetingLine(kind: string, role: string) {
+  const base: Record<string, string[]> = {
+    game: ['コアループはシンプルに、最初の30秒で楽しさが伝わる形にしましょう。', '操作は片手でも遊べるようにします。', '世界観は依頼の雰囲気に合わせます。', '当たり判定と難易度は後で調整します。'],
+    image: ['構図は主役を中央に、視線誘導を意識します。', '配色は依頼のトーンに合わせます。', 'バリエーションも用意します。'],
+    videomake: ['台本は要点を3〜5シーンに分けます。', 'テロップで要点を補強します。', '尺は短めでテンポよく。'],
+    videoedit: ['不要部分と無音を先に整理します。', 'テロップとBGMで見やすくします。', '最後に書き出し設定を確認します。'],
+  };
+  const arr = base[kind] || ['承知しました。担当分を進めます。'];
+  return `${role}として、` + arr[Math.floor(Math.random() * arr.length)];
+}
+
+async function produce(p: any, members: any[], set: (s: string, n: number) => void) {
+  const leader = members[0];
+  const markWorking = (i: number) => { if (p.tasks[i]) { p.tasks[i].status = 'working'; saveProj(p); } };
+  const markDone = (i: number, note: string) => { if (p.tasks[i]) { p.tasks[i].status = 'done'; p.tasks[i].note = note; } p.progress = Math.min(95, 10 + Math.round(((i + 1) / p.tasks.length) * 85)); saveProj(p); };
+
+  if (p.teamKind === 'game') {
+    // 画像チームと連携：キービジュアルを本当に生成
+    for (let i = 0; i < members.length; i++) {
+      if (stopped(p)) return; markWorking(i); await sleep(250);
+      const r = members[i].role;
+      if (r.includes('キャラクター') || r.includes('マップ')) { gpost(p.groupId, members[i].id, { type: 'image', img: { dataUrl: imgUrl(r + ' ' + p.request), caption: `${r}：自動生成` } }); markDone(i, '素材を生成'); }
+      else markDone(i, '担当分を反映');
+    }
+    const genre = pickGenre(p.request);
+    const spec = { title: p.title || 'GODAgent Game', theme: p.request.slice(0, 40), color: TEAMS.find((t) => t.kind === 'game')!.color, genre };
+    const html = makeGame(spec);
+    p.deliverables = [{ kind: 'game', title: spec.title, genre, html }];
+    gpost(p.groupId, leader.id, { type: 'game', game: { title: spec.title, genre, html } });
+  } else if (p.teamKind === 'image') {
+    const kinds = ['キービジュアル', 'キャラクター', '背景', 'サムネイル'];
+    p.deliverables = [];
+    for (let i = 0; i < members.length; i++) {
+      if (stopped(p)) return; markWorking(i);
+      if (members[i].role.includes('生成') || members[i].role.includes('合成') || members[i].role.includes('構図')) {
+        const k = kinds[i % kinds.length]; const url = imgUrl(k + ' ' + p.request);
+        p.deliverables.push({ kind: 'image', caption: k, dataUrl: url });
+        gpost(p.groupId, members[i].id, { type: 'image', img: { dataUrl: url, caption: `${k}（自動生成）` } });
+      }
+      await sleep(200); markDone(i, '完了');
+    }
+  } else if (p.teamKind === 'videomake') {
+    for (let i = 0; i < members.length - 1; i++) { if (stopped(p)) return; markWorking(i); await sleep(250); markDone(i, '完了'); }
+    const scenes = scriptScenes(p.request);
+    gpost(p.groupId, leader.id, { type: 'text', text: '台本（絵コンテ）\n' + scenes.map((s, i) => `${i + 1}. ${s}`).join('\n') });
+    const res = await recordVideo({ title: p.title || 'GODAgent', scenes, color: TEAMS.find((t) => t.kind === 'videomake')!.color });
+    if (res.dataUrl) { p.deliverables = [{ kind: 'video', caption: p.title, dataUrl: res.dataUrl, mime: res.mime }]; gpost(p.groupId, leader.id, { type: 'video', video: { title: p.title, dataUrl: res.dataUrl, mime: res.mime } }); }
+    else { gpost(p.groupId, leader.id, { type: 'error', text: res.error || '動画の生成に失敗しました。' }); p.deliverables = [{ kind: 'note', text: '実映像は生成できませんでした：' + (res.error || '') }]; }
+    markDone(members.length - 1, '統合・確認');
+  } else if (p.teamKind === 'videoedit') {
+    for (let i = 0; i < members.length; i++) { if (stopped(p)) return; markWorking(i); await sleep(150); markDone(i, '計画作成'); }
+    const hasVideo = (p.inputFiles || []).some((f: any) => (f.mime || '').startsWith('video'));
+    const plan = editPlan(p.request);
+    gpost(p.groupId, leader.id, { type: 'text', text: '編集プラン\n' + plan.map((s, i) => `${i + 1}. ${s}`).join('\n') });
+    gpost(p.groupId, leader.id, { type: 'error', text: '正直なご報告：' + (hasVideo ? '素材を受領しましたが、' : '') + 'プロ向けの本格的な映像編集（カット・合成・書き出し等）は、端末ブラウザ内での実行能力の制約により本アプリ単体では実処理まで行えません。上記は実行可能な編集プランです。実処理が必要な場合はエンコード環境が必要です。' });
+    p.deliverables = [{ kind: 'note', text: '編集プラン（実編集処理は端末制約により未対応）' }];
+  }
+  if (p.progress < 95) { p.progress = 95; saveProj(p); }
+}
+
+function imgUrl(prompt: string) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(makeImage(prompt)); }
+function scriptScenes(req: string): string[] {
+  const t = req.slice(0, 24) || 'GODAgent';
+  return [`${t}`, '課題：いまの悩みを提示', '解決：GODAgent が手伝います', '特長：チームで自動制作', 'さあ、始めましょう'];
+}
+function editPlan(req: string): string[] {
+  return ['不要部分・無音の自動カット', '要点テロップと字幕の付与', 'BGMと効果音の追加', '色・明るさ・音量の補正', '書き出し設定（1080p / MP4・WebM）の確認'];
+}
+
 // ---- routine scheduler --------------------------------------------------
 function tzClock() { const d = new Date(); return { hm: d.toTimeString().slice(0, 5), weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()], day: String(d.getDate()).padStart(2, '0') }; }
 function dueRoutine(r: any, c: any) { const tr = r.trigger || {}; const mins = (now() - (r.lastRun || 0)) / 60000; switch (tr.kind) { case 'interval': return mins >= (tr.minutes || 60); case 'time': case 'daily': return c.hm === (tr.at || '09:00') && mins > 2; case 'weekly': return c.hm === (tr.at || '09:00') && (tr.weekday || 'Mon').startsWith(c.weekday) && mins > 2; case 'monthly': return c.hm === (tr.at || '09:00') && String(tr.day || 1).padStart(2, '0') === c.day && mins > 2; default: return false; } }
@@ -348,13 +511,19 @@ setInterval(() => { const c = tzClock(); for (const r of Object.values(S.routine
 
 // ---- public api ---------------------------------------------------------
 export const api = {
-  async bootstrap() { ensureSeed(); return { bots: listBots(), settings: S.settings, skills: Object.values(S.skills), routines: Object.values(S.routines), connections: S.connections, apps: APPS, catalog: { shapes: SHAPES, palette: PALETTE, states: STATES, triggerKinds: TRIGGER_KINDS }, engine: 'simulation', computer: computerSnap() }; },
+  async bootstrap() { ensureSeed(); return { bots: listBots(), settings: S.settings, skills: Object.values(S.skills), routines: Object.values(S.routines), connections: S.connections, apps: APPS, projects: Object.values(S.projects).sort((a: any, b: any) => b.createdAt - a.createdAt), catalog: { shapes: SHAPES, palette: PALETTE, states: STATES, triggerKinds: TRIGGER_KINDS }, engine: 'simulation', computer: computerSnap() }; },
   async bot(id: string) { const b = S.bots[id]; return { bot: b, messages: S.messages[id] || [], memory: S.memory[id] || [], busy: active.has(id), routines: Object.values(S.routines).filter((r: any) => r.botId === id) }; },
   async createBot(p: any) { const b = bot({ kind: p.kind === 'group' ? 'group' : 'bot', name: (p.name || '新しいBot').slice(0, 60), title: (p.title || '').slice(0, 80), shape: SHAPES.includes(p.shape) ? p.shape : 'blob', color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : PALETTE[Math.floor(Math.random() * PALETTE.length)], avatarImage: p.avatarImage || null, members: Array.isArray(p.members) ? p.members : [] }); S.bots[b.id] = b; S.messages[b.id] = [{ id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `はじめまして、${b.name}です。任せたい役割を教えてください。会話の合間も作業を続けます。`, ts: now() }]; save(); emit('bots', listBots()); return b; },
   async patchBot(id: string, p: any) { const b = S.bots[id]; if (!b) return; for (const k of ['name', 'title', 'shape', 'color', 'avatarImage', 'pinned', 'hidden', 'members', 'apps', 'model']) if (k in p) b[k] = p[k]; b.updatedAt = now(); save(); emit('bots', listBots()); emit('bot', b); return b; },
   async deleteBot(id: string) { delete S.bots[id]; delete S.messages[id]; delete S.memory[id]; for (const r of Object.values(S.routines) as any[]) if (r.botId === id) delete S.routines[r.id]; if (S.settings.primaryBotId === id) S.settings.primaryBotId = listBots()[0]?.id || null; save(); emit('bots', listBots()); return { ok: true }; },
   async send(id: string, text: string, files?: any[]) { const b = S.bots[id]; if (!b) return; const msg = { id: uid('m_'), role: 'user', botId: id, type: 'text', text, files: files || [], ts: now() }; (S.messages[id] ||= []).push(msg); save(); emit('message', msg); runTurn(b, text); return msg; },
   async stop(id: string) { active.delete(id); return { ok: true }; },
+  async projects() { return Object.values(S.projects).sort((a: any, b: any) => b.createdAt - a.createdAt); },
+  async teams() { return TEAMS.map((t) => ({ kind: t.kind, name: t.name, color: t.color, shape: t.shape, groupId: teamGroupId(t.kind), members: (S.bots[teamGroupId(t.kind)!]?.members || []).map((id: string) => ({ id, name: S.bots[id]?.name, role: S.bots[id]?.title })) })); },
+  async createProject(teamKind: string, request: string) { const id = startProject(teamKind as any, request); return { id }; },
+  async reviseProject(id: string, note: string) { const p = S.projects[id]; if (!p) return { ok: false }; gpost(p.groupId, p.tasks?.[0]?.memberId || S.bots[p.groupId].members[0], { type: 'text', text: `社長、修正指示を承りました：「${note.slice(0, 80)}」。再制作いたします。` }); startProject(p.teamKind, p.request + '（修正指示：' + note + '）', id); return { ok: true }; },
+  async approveProject(id: string) { const p = S.projects[id]; if (!p) return { ok: false }; p.status = 'approved'; saveProj(p); gpost(p.groupId, S.bots[p.groupId].members[0], { type: 'text', text: '社長、ご承認ありがとうございます。正式に完成といたします。' }); return { ok: true }; },
+  async stopProject(id: string) { const p = S.projects[id]; if (!p) return { ok: false }; p.status = 'stopped'; saveProj(p); gpost(p.groupId, S.bots[p.groupId].members[0], { type: 'text', text: '社長、作業を停止いたしました。' }); return { ok: true }; },
   async approve(id: string, effect: string, always = false) { return { ok: pendingResolve(id, { effect, always }) }; },
   async answer(id: string, value: string) { return { ok: pendingResolve(id, { value }) }; },
   async addMemory(id: string, kind: string, text: string) { const item = { id: uid('mem_'), kind, text: text.slice(0, 500), ts: now() }; (S.memory[id] ||= []).push(item); save(); emit('memory', S.memory[id]); return item; },

@@ -21,8 +21,14 @@ web/dist-artifact/
 web/dist-apk/
 apk-nosdk/*.jar
 apk-nosdk/classes/
+apk-nosdk/classes.dex
+apk-nosdk/assets/
+apk-nosdk/res/
+apk-nosdk/base.apk
 apk-nosdk/*.apk
-apk-nosdk/*.jks
 
 # keep the prebuilt release APK
 !dist-apk/GODAgent.apk
+
+# keep the self-signed sideload keystore so rebuilds stay installable as updates
+!apk-nosdk/ks.jks

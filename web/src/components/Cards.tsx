@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { api } from '../api';
 import { actions, Msg } from '../store';
 
@@ -9,6 +10,8 @@ export function Card({ m }: { m: Msg }) {
     case 'email': return <EmailCard m={m} />;
     case 'memory': return <MemoryCard m={m} />;
     case 'image': return <ImageCard m={m} />;
+    case 'game': return <GameCard m={m} />;
+    case 'video': return <VideoCard m={m} />;
     case 'handoff': return <HandoffCard m={m} />;
     case 'file': return <FileCard m={m} />;
     case 'error': return <ErrorCard m={m} />;
@@ -116,6 +119,41 @@ function ImageCard({ m }: { m: Msg }) {
       <Head k="画像" badge={statusBadge('done')} />
       {img.dataUrl && <img src={img.dataUrl} alt={img.caption || ''} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }} />}
       {img.caption && <div className="muted" style={{ marginTop: 8 }}>{img.caption}</div>}
+    </div>
+  );
+}
+
+function GameCard({ m }: { m: Msg }) {
+  const g = m.game || {};
+  const [play, setPlay] = useState(false);
+  const src = 'data:text/html;charset=utf-8,' + encodeURIComponent(g.html || '');
+  function download() {
+    const blob = new Blob([g.html || ''], { type: 'text/html' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (g.title || 'game') + '.html'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  return (
+    <div className="card2 bot">
+      <Head k="ゲーム（プレイ可能）" badge={statusBadge('done')} />
+      <div style={{ fontSize: 14, fontWeight: 600 }}>{g.title}</div>
+      <div className="muted" style={{ marginBottom: 8 }}>ジャンル: {({ collector: 'アイテム収集', dodger: '回避', shooter: 'シューティング' } as any)[g.genre] || g.genre} ・ HTML出力</div>
+      {play
+        ? <iframe title="game" src={src} style={{ width: '100%', height: 420, border: '1px solid var(--border)', borderRadius: 10, background: '#0f1020' }} />
+        : <button className="btn primary" onClick={() => setPlay(true)}>▶ プレイする</button>}
+      <div className="btn-row"><button className="btn sm" onClick={download}>HTMLをダウンロード</button></div>
+    </div>
+  );
+}
+
+function VideoCard({ m }: { m: Msg }) {
+  const v = m.video || {};
+  function download() { const a = document.createElement('a'); a.href = v.dataUrl; a.download = (v.title || 'video') + '.webm'; a.click(); }
+  return (
+    <div className="card2 bot">
+      <Head k="動画（生成）" badge={statusBadge('done')} />
+      {v.dataUrl && <video src={v.dataUrl} controls playsInline style={{ width: '100%', borderRadius: 10, border: '1px solid var(--border)', background: '#000' }} />}
+      <div className="muted" style={{ marginTop: 6 }}>{v.title} ・ WebM</div>
+      {v.dataUrl && <div className="btn-row"><button className="btn sm" onClick={download}>動画をダウンロード</button></div>}
     </div>
   );
 }

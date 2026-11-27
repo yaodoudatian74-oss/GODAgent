@@ -15,6 +15,7 @@ interface State {
   apps: any[];
   catalog: { shapes: string[]; palette: string[]; states: string[]; triggerKinds: string[] };
   computer: any;
+  projects: any[];
   activeId: string | null;
   messages: Record<string, Msg[]>;   // botId -> msgs
   memory: Record<string, any[]>;
@@ -24,7 +25,7 @@ interface State {
 }
 
 let state: State = {
-  ready: false, engine: 'simulation', bots: [], settings: {}, skills: [], routines: [], connections: {}, apps: [],
+  ready: false, engine: 'simulation', bots: [], settings: {}, skills: [], routines: [], connections: {}, apps: [], projects: [],
   catalog: { shapes: [], palette: [], states: [], triggerKinds: [] }, computer: { available: false },
   activeId: null, messages: {}, memory: {}, busy: {}, modal: null, mobilePane: 'list',
 };
@@ -42,7 +43,7 @@ export const actions = {
   async boot() {
     const b = await api.bootstrap();
     set({ ready: true, engine: b.engine, bots: b.bots, settings: b.settings, skills: b.skills, routines: b.routines,
-      connections: b.connections, apps: b.apps, catalog: b.catalog, computer: b.computer });
+      connections: b.connections, apps: b.apps, catalog: b.catalog, computer: b.computer, projects: b.projects || [] });
     applyTheme(b.settings.appearance);
     openStream('*', onEvent);
     const first = b.settings.primaryBotId && b.bots.find((x: Bot) => x.id === b.settings.primaryBotId) ? b.settings.primaryBotId : b.bots[0]?.id;
@@ -96,6 +97,8 @@ function onEvent(event: string, data: any) {
     case 'connections': set({ connections: data }); break;
     case 'memory': { const botId = state.activeId; if (botId) { state.memory = { ...state.memory, [botId]: data }; emit(); } break; }
     case 'computer': set({ computer: data }); break;
+    case 'projects': set({ projects: data }); break;
+    case 'project': { const i = state.projects.findIndex((x) => x.id === data.id); const next = [...state.projects]; if (i >= 0) next[i] = data; else next.unshift(data); set({ projects: next }); break; }
     case 'routine.run': emit(); break;
   }
 }

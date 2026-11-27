@@ -20,6 +20,13 @@ const remoteApi = {
   deleteBot: (id: string) => req(`/api/bots/${id}`, { method: 'DELETE' }),
   send: (id: string, text: string, files?: any[]) => req(`/api/bots/${id}/messages`, { method: 'POST', headers: J, body: JSON.stringify({ text, files }) }),
   stop: (id: string) => req(`/api/bots/${id}/stop`, { method: 'POST' }),
+  // Autonomous projects + teams exist only in the standalone (app) build.
+  projects: async () => [],
+  teams: async () => [],
+  createProject: async (_k: string, _r: string) => ({ id: null }),
+  approveProject: async (_id: string) => ({ ok: false }),
+  reviseProject: async (_id: string, _n: string) => ({ ok: false }),
+  stopProject: async (_id: string) => ({ ok: false }),
 
   approve: (id: string, effect: 'allow' | 'deny', always = false) => req(`/api/approvals/${id}/resolve`, { method: 'POST', headers: J, body: JSON.stringify({ effect, always }) }),
   answer: (id: string, value: string) => req(`/api/questions/${id}/answer`, { method: 'POST', headers: J, body: JSON.stringify({ value }) }),
@@ -56,7 +63,7 @@ export type StreamHandler = (event: string, data: any) => void;
 function remoteOpenStream(botId: string | '*', onEvent: StreamHandler) {
   const es = new EventSource(`/api/stream?botId=${encodeURIComponent(botId)}`);
   const names = ['hello', 'message', 'message.delta', 'message.done', 'message.update', 'state', 'bot',
-    'bots', 'settings', 'routines', 'skills', 'connections', 'memory', 'computer', 'routine.run'];
+    'bots', 'settings', 'routines', 'skills', 'connections', 'memory', 'computer', 'routine.run', 'projects', 'project'];
   for (const n of names) es.addEventListener(n, (e: MessageEvent) => { try { onEvent(n, JSON.parse(e.data)); } catch {} });
   return () => es.close();
 }
