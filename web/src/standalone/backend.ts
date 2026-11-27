@@ -7,6 +7,8 @@
 // Exposes the same `api` surface and `openStream` as the real client, so the
 // rest of the app is unchanged.
 
+import { generate as hfGenerate } from '../localai/hf';
+
 type Fn = (...a: any[]) => any;
 
 const LS_KEY = 'godagent.store.v1';
@@ -36,13 +38,29 @@ interface Store { bots: Record<string, any>; messages: Record<string, any[]>; me
 
 function emptyStore(): Store {
   return { bots: {}, messages: {}, memory: {}, skills: {}, routines: {}, connections: {}, rules: [], files: {},
-    settings: { appearance: 'system', accent: 'auto', language: 'ja', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', autoReview: true, primaryBotId: null, computerPermission: 'ask', user: { name: 'あなた', initials: 'YOU' } } };
+    settings: { appearance: 'system', accent: 'auto', language: 'ja', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', autoReview: true, primaryBotId: null, computerPermission: 'ask', defaultModel: 'sim', user: { name: 'あなた', initials: 'YOU' } } };
 }
 
 let S: Store = load();
 function load(): Store { try { const r = localStorage.getItem(LS_KEY); if (r) { const p = JSON.parse(r); return { ...emptyStore(), ...p, settings: { ...emptyStore().settings, ...p.settings } }; } } catch {} return emptyStore(); }
+// Throttled (not debounced) persistence: a change is written within 60 ms even
+// while other changes keep coming, and everything is flushed when the app is
+// hidden or closed (e.g. swiped away on Android), so nothing is lost.
 let saveTimer: any = null;
-function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch {} }, 60); }
+function flushNow() {
+  clearTimeout(saveTimer); saveTimer = null;
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); return; } catch (e) { console.error('[store] save failed', e); }
+  // Over quota (large attachments): keep everything except attachment payloads.
+  try {
+    const lite = { ...S, files: Object.fromEntries(Object.entries(S.files).map(([k, f]: any) => [k, { ...f, dataUrl: undefined }])) };
+    localStorage.setItem(LS_KEY, JSON.stringify(lite));
+  } catch (e) { console.error('[store] save failed (lite)', e); }
+}
+function save() { if (!saveTimer) saveTimer = setTimeout(flushNow, 60); }
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushNow);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+}
 
 // ---- event bus ----------------------------------------------------------
 const subs = new Set<Fn>();
@@ -207,6 +225,8 @@ async function runTurn(b: any, userText: string) {
   try { await plan(b, userText); } catch {} finally { active.delete(b.id); }
 }
 async function plan(b: any, userText: string) {
+  const modelId: string = b.model || S.settings.defaultModel || 'sim';
+  if (modelId.startsWith('hf:') && b.kind !== 'group') { if (await hfTurn(b, modelId.slice(3), userText)) return; }
   const T = tools(b); const t = userText.toLowerCase();
   if (has(t, 'remember', 'always', 'from now on', '覚え', '今後', 'いつも')) { await T.saveMemory('instruction', userText.replace(/^(remember|always|覚えて|今後は?)[:,、\s]*/i, '').trim()); await T.reply('承知しました。今後はそのようにいたします。'); return T.done(); }
   if (has(t, 'which', 'should i', 'option', 'choose', 'どっち', 'どちら', 'どれ', 'べき') && b.kind !== 'group') { const a = await T.askQuestion({ question: '進め方がいくつか考えられます。どれがよろしいですか？', options: ['まず動いて、必要なら後で調整', 'すべて下書きしてから確認を仰ぐ', '最も効果の大きい項目だけ'] }); await T.reply(`承知しました。「${a}」で進めます。開始いたします。`); return T.done(); }
@@ -277,6 +297,45 @@ async function plan(b: any, userText: string) {
   await T.reply(reply); T.done();
 }
 
+
+// ---- Hugging Face model turn (runs on the device) ------------------------
+async function hfTurn(b: any, id: string, userText: string): Promise<boolean> {
+  const T = tools(b);
+  if (has(userText.toLowerCase(), '覚え', 'remember', '今後', 'いつも')) await T.saveMemory('instruction', userText);
+  setState(b, 'thinking');
+  const mid = uid('m_');
+  const base: any = { id: mid, role: 'bot', botId: b.id, type: 'text', text: '', ts: now(), streaming: true, model: id };
+  (S.messages[b.id] ||= []).push(base); emit('message', base);
+  const mem = (S.memory[b.id] || []).map((m: any) => '- ' + m.text).join('\n') || '- なし';
+  const system = `あなたは「${b.name}」${b.title ? `（${b.title}）` : ''}というAIチームメイトです。日本語で、簡潔かつ丁寧に答えてください。\n覚えていること:\n${mem}`;
+  // history: text only, starting from a user turn, consecutive roles merged
+  const hist: { role: 'user' | 'assistant'; content: string }[] = [];
+  for (const m of (S.messages[b.id] || []).filter((x: any) => x.type === 'text' && x.text && x.id !== mid).slice(-10)) {
+    const role = m.role === 'user' ? 'user' : 'assistant';
+    if (!hist.length && role !== 'user') continue;
+    if (hist.length && hist[hist.length - 1].role === role) hist[hist.length - 1].content += '\n' + m.text;
+    else hist.push({ role, content: m.text });
+  }
+  if (!hist.length) hist.push({ role: 'user', content: userText });
+  let started = false;
+  const set = (text: string) => { base.text = text; emit('message.delta', { id: mid, text }); };
+  try {
+    const final = await hfGenerate(id, [{ role: 'system', content: system }, ...hist],
+      (txt) => { if (!started) { started = true; setState(b, 'working'); } set(txt); },
+      { onProgress: (p) => { if (!started) set(`モデルを読み込み中… ${p.pct}%`); } });
+    base.text = final || '（応答が空でした）'; base.streaming = false; save();
+    emit('message.done', { id: mid, text: base.text });
+    T.done();
+    return true;
+  } catch (e: any) {
+    console.error('[hf] generation failed', e);
+    const msg = `モデル「${id}」で応答できませんでした（${e?.message || e}）。内蔵シミュレーションで応答します。`;
+    Object.assign(base, { type: 'error', text: msg, streaming: false }); save();
+    emit('message.update', { id: mid, patch: { type: 'error', text: msg, streaming: false } });
+    return false;
+  }
+}
+
 // ---- routine scheduler --------------------------------------------------
 function tzClock() { const d = new Date(); return { hm: d.toTimeString().slice(0, 5), weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()], day: String(d.getDate()).padStart(2, '0') }; }
 function dueRoutine(r: any, c: any) { const tr = r.trigger || {}; const mins = (now() - (r.lastRun || 0)) / 60000; switch (tr.kind) { case 'interval': return mins >= (tr.minutes || 60); case 'time': case 'daily': return c.hm === (tr.at || '09:00') && mins > 2; case 'weekly': return c.hm === (tr.at || '09:00') && (tr.weekday || 'Mon').startsWith(c.weekday) && mins > 2; case 'monthly': return c.hm === (tr.at || '09:00') && String(tr.day || 1).padStart(2, '0') === c.day && mins > 2; default: return false; } }
@@ -292,7 +351,7 @@ export const api = {
   async bootstrap() { ensureSeed(); return { bots: listBots(), settings: S.settings, skills: Object.values(S.skills), routines: Object.values(S.routines), connections: S.connections, apps: APPS, catalog: { shapes: SHAPES, palette: PALETTE, states: STATES, triggerKinds: TRIGGER_KINDS }, engine: 'simulation', computer: computerSnap() }; },
   async bot(id: string) { const b = S.bots[id]; return { bot: b, messages: S.messages[id] || [], memory: S.memory[id] || [], busy: active.has(id), routines: Object.values(S.routines).filter((r: any) => r.botId === id) }; },
   async createBot(p: any) { const b = bot({ kind: p.kind === 'group' ? 'group' : 'bot', name: (p.name || '新しいBot').slice(0, 60), title: (p.title || '').slice(0, 80), shape: SHAPES.includes(p.shape) ? p.shape : 'blob', color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : PALETTE[Math.floor(Math.random() * PALETTE.length)], avatarImage: p.avatarImage || null, members: Array.isArray(p.members) ? p.members : [] }); S.bots[b.id] = b; S.messages[b.id] = [{ id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `はじめまして、${b.name}です。任せたい役割を教えてください。会話の合間も作業を続けます。`, ts: now() }]; save(); emit('bots', listBots()); return b; },
-  async patchBot(id: string, p: any) { const b = S.bots[id]; if (!b) return; for (const k of ['name', 'title', 'shape', 'color', 'avatarImage', 'pinned', 'hidden', 'members', 'apps']) if (k in p) b[k] = p[k]; b.updatedAt = now(); save(); emit('bots', listBots()); emit('bot', b); return b; },
+  async patchBot(id: string, p: any) { const b = S.bots[id]; if (!b) return; for (const k of ['name', 'title', 'shape', 'color', 'avatarImage', 'pinned', 'hidden', 'members', 'apps', 'model']) if (k in p) b[k] = p[k]; b.updatedAt = now(); save(); emit('bots', listBots()); emit('bot', b); return b; },
   async deleteBot(id: string) { delete S.bots[id]; delete S.messages[id]; delete S.memory[id]; for (const r of Object.values(S.routines) as any[]) if (r.botId === id) delete S.routines[r.id]; if (S.settings.primaryBotId === id) S.settings.primaryBotId = listBots()[0]?.id || null; save(); emit('bots', listBots()); return { ok: true }; },
   async send(id: string, text: string, files?: any[]) { const b = S.bots[id]; if (!b) return; const msg = { id: uid('m_'), role: 'user', botId: id, type: 'text', text, files: files || [], ts: now() }; (S.messages[id] ||= []).push(msg); save(); emit('message', msg); runTurn(b, text); return msg; },
   async stop(id: string) { active.delete(id); return { ok: true }; },

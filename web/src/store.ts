@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { api, openStream } from './api';
 
-export interface Bot { id: string; kind: 'bot' | 'group'; name: string; title: string; shape: string; color: string; avatarImage: string | null; state: string; pinned: boolean; hidden: boolean; members: string[]; apps: string[]; createdAt: number; updatedAt: number; }
+export interface Bot { id: string; kind: 'bot' | 'group'; name: string; title: string; shape: string; color: string; avatarImage: string | null; state: string; pinned: boolean; hidden: boolean; members: string[]; apps: string[]; model?: string; createdAt: number; updatedAt: number; }
 export interface Msg { id: string; role: 'user' | 'bot'; botId?: string; type: string; text?: string; ts: number; streaming?: boolean; [k: string]: any; }
 
 interface State {

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useStore, actions, getState } from '../store';
 import { api } from '../api';
 import { AvatarCanvas, AvatarSvg } from '../avatar/Avatar';
+import { ModelsPane } from './ModelsPane';
+import * as hf from '../localai/hf';
 
 const STATE_LABEL: Record<string, string> = { idle: '待機', thinking: '思考', working: '作業', waiting: '待機中', blocked: '問題発生', done: '完了' };
 const KIND_LABEL: Record<string, string> = { fact: '事実', preference: '好み', instruction: '指示' };
@@ -107,10 +109,11 @@ function EditAvatar({ data, close }: any) {
   const [image, setImage] = useState<string | null>(bot.avatarImage);
   const [gen, setGen] = useState('');
   const [genNote, setGenNote] = useState('');
+  const [model, setModel] = useState<string>(bot.model || '');
   const isPrimary = getState().settings.primaryBotId === bot.id;
 
   async function save() {
-    await api.patchBot(bot.id, { name, title, shape, color, avatarImage: image });
+    await api.patchBot(bot.id, { name, title, shape, color, avatarImage: image, model });
     await actions.refreshBots(); close();
   }
   async function generate() {
@@ -150,6 +153,14 @@ function EditAvatar({ data, close }: any) {
         )}
         <div className="field"><label>名前</label><input value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div className="field"><label>タイトル</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+        <div className="field"><label>使用するモデル</label>
+          <select value={model} onChange={(e) => setModel(e.target.value)}>
+            <option value="">既定に従う（設定 → モデル）</option>
+            <option value="sim">内蔵シミュレーション</option>
+            {hf.installed().map((m) => <option key={m.id} value={'hf:' + m.id}>{m.id}</option>)}
+          </select>
+          <div className="muted" style={{ marginTop: 6 }}>Hugging Face のモデルは 設定 → モデル からダウンロードできます（ログイン不要）。</div>
+        </div>
         <div className="btn-row">
           <button className="btn primary" onClick={save}>保存</button>
           <button className="btn" onClick={close}>キャンセル</button>
@@ -162,12 +173,12 @@ function EditAvatar({ data, close }: any) {
 }
 
 // ---- 設定 --------------------------------------------------------------
-function Settings({ close }: any) {
+function Settings({ close, data }: any) {
   const s = useStore((x) => x.settings);
-  const [tab, setTab] = useState('appearance');
+  const [tab, setTab] = useState(data?.tab || 'appearance');
   const set = (p: any) => api.settings(p);
-  const tabs = ['account', 'appearance', 'language', 'computer', 'bot', 'timezone', 'autoReview', 'rules', 'apps', 'skills', 'vault', 'notifications', 'updates'];
-  const labels: any = { account: 'アカウント', appearance: '外観', language: '言語', computer: 'コンピューター', bot: 'Bot', timezone: 'タイムゾーン', autoReview: '自動レビュー', rules: 'カスタムルール', apps: 'アプリ接続', skills: 'スキル', vault: 'Vault', notifications: '通知', updates: '更新情報' };
+  const tabs = ['models', 'account', 'appearance', 'language', 'computer', 'bot', 'timezone', 'autoReview', 'rules', 'apps', 'skills', 'vault', 'notifications', 'updates'];
+  const labels: any = { models: 'モデル', account: 'アカウント', appearance: '外観', language: '言語', computer: 'コンピューター', bot: 'Bot', timezone: 'タイムゾーン', autoReview: '自動レビュー', rules: 'カスタムルール', apps: 'アプリ接続', skills: 'スキル', vault: 'Vault', notifications: '通知', updates: '更新情報' };
   const themeLabel: any = { light: 'ライト', dark: 'ダーク', system: 'システム' };
   return (
     <>
@@ -203,6 +214,7 @@ function Settings({ close }: any) {
           <div className="row-between"><div><b>自動レビュー</b><div className="muted">提案された操作を、実行前にあなたのルールに照らしてレビュー担当が評価します。</div></div>
             <button className={`switch ${s.autoReview ? 'on' : ''}`} onClick={() => set({ autoReview: !s.autoReview })}><i /></button></div>
         </>}
+        {tab === 'models' && <ModelsPane />}
         {tab === 'rules' && <RulesPane />}
         {tab === 'apps' && <ConnectApps embedded />}
         {tab === 'skills' && <SkillsModal embedded />}

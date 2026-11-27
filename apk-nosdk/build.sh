@@ -25,12 +25,12 @@ fetch() { for a in 1 2 3 4 5; do c=$(curl -s --max-time 120 -o "$2" -w "%{http_c
 [ -f dx.jar ] || fetch https://repo1.maven.org/maven2/com/jakewharton/android/repackaged/dalvik-dx/16.0.1/dalvik-dx-16.0.1.jar dx.jar
 
 echo "==> Building standalone web bundle"
-( cd ../web && VITE_STANDALONE=1 VITE_SINGLEFILE=1 npx vite build --outDir dist-artifact >/dev/null )
+( cd ../web && VITE_STANDALONE=1 VITE_SINGLEFILE=1 npx vite build --base=./ --outDir dist-artifact >/dev/null )
 
 echo "==> Staging assets + density launcher icons (from the GODAgent logo)"
 rm -rf assets res classes build && mkdir -p assets/www/computer-apps classes
-cp ../web/dist-artifact/index.html assets/www/index.html
-cp ../web/dist-artifact/computer-apps/* assets/www/computer-apps/
+# whole single-file build: index.html + ONNX Runtime .wasm (on-device AI) + computer apps + icons
+cp -r ../web/dist-artifact/. assets/www/ && rm -f assets/www/sw.js
 python3 - <<'PY'
 from PIL import Image
 im=Image.open('../web/public/icons/icon-512.png').convert('RGBA')
@@ -41,7 +41,7 @@ for d,sz in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)
 PY
 
 echo "==> Compiling + dexing MainActivity"
-javac -source 8 -target 8 -classpath android.jar -d classes src/com/godagent/app/MainActivity.java 2>/dev/null
+javac -source 8 -target 8 -classpath android.jar -d classes src/com/godagent/app/*.java 2>/dev/null
 java -cp dx.jar com.android.dx.command.Main --dex --min-sdk-version=21 --output=classes.dex classes/
 
 echo "==> aapt package (compiles resources.arsc + binary manifest + assets)"

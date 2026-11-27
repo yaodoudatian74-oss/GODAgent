@@ -66,7 +66,7 @@ app.post('/api/bots', (req, res) => {
 app.patch('/api/bots/:id', (req, res) => {
   const bot = db.getBot(req.params.id);
   if (!bot) return res.status(404).json({ error: 'not found' });
-  const allow = ['name', 'title', 'shape', 'color', 'avatarImage', 'pinned', 'hidden', 'members', 'apps'];
+  const allow = ['name', 'title', 'shape', 'color', 'avatarImage', 'pinned', 'hidden', 'members', 'apps', 'model'];
   for (const k of allow) if (k in req.body) bot[k] = req.body[k];
   bot.updatedAt = now();
   db.putBot(bot);

@@ -1,17 +1,18 @@
 // Minimal offline-first service worker. Caches the app shell so GODAgent boots
 // as a PWA even when offline (the simulation engine keeps the app usable).
-const CACHE = 'godagent-v1';
+const CACHE = 'godagent-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('godagent-') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
+  if (url.origin !== self.location.origin) return; // never touch other sites (e.g. Hugging Face downloads)
   if (url.pathname.startsWith('/api/')) return; // never cache API / SSE
   e.respondWith(
     caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {

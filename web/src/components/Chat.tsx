@@ -3,6 +3,7 @@ import { useStore, actions, getState, Msg } from '../store';
 import { api } from '../api';
 import { AvatarCanvas } from '../avatar/Avatar';
 import { Card } from './Cards';
+import { modelLabel } from './ModelsPane';
 
 export function Chat() {
   const activeId = useStore((s) => s.activeId);
@@ -25,7 +26,7 @@ export function Chat() {
         <AvatarCanvas shape={bot.shape} color={bot.color} state={bot.state} image={bot.avatarImage} size={30} interactive={false} />
         <div>
           <div className="title">{bot.name}</div>
-          <div className="subtitle">{stateLabel(bot.state)}{bot.title ? ` · ${bot.title}` : ''}</div>
+          <div className="subtitle">{stateLabel(bot.state)}{bot.title ? ` · ${bot.title}` : ''} · {modelLabel(bot.model)}</div>
         </div>
         <div className="grow" />
         <button className="icon-btn" title="コンピューター" onClick={() => actions.setModal('preview')}>🖥</button>

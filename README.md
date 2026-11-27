@@ -112,6 +112,28 @@ scripts/build-apk.sh                       # → ./GODAgent.apk
 
 Build the offline bundle alone with: `cd web && VITE_STANDALONE=1 npx vite build --base=./ --outDir dist-standalone`.
 
+## On-device AI: Hugging Face models (no login)
+
+In the app, **設定 → モデル** lists recommended models and searches Hugging Face
+for transformers.js-compatible text-generation models. Each row shows the real
+download size (read from the Hub before downloading). Tap **ダウンロード** and the
+model is fetched anonymously (public models only — no account or token), stored
+in the device's browser cache, and run **on the device** with transformers.js +
+ONNX Runtime WebAssembly (WebGPU when the device really has a usable adapter).
+Pick it as the default model or per Bot (Bot details → 使用するモデル); after the
+first download it works offline. If loading or generation fails, the Bot says so
+and falls back to the built-in simulation.
+
+- APK: ONNX Runtime's `.wasm` ships inside the APK, and the app is served from a
+  virtual `https://godagent.local/` origin by `MainActivity`, so the Cache API and
+  WASM loading work exactly like in a browser. Only huggingface.co is contacted.
+- Tests: `web/e2e-standalone/hf-models.spec.ts` intercepts huggingface.co and
+  serves a tiny real ONNX model (`web/e2e/fixtures/make_tiny_model.py`) to cover
+  search → size → download → on-device chat → offline reuse, including the APK
+  origin. Run: `npx playwright test -c playwright.standalone.config.ts`.
+- Not verified here: downloading a real model from huggingface.co (blocked in the
+  authoring sandbox) and running on a physical phone.
+
 ## Tests
 
 ```bash
