@@ -6,6 +6,7 @@ import { ModelsPane } from './ModelsPane';
 import { ProjectsPane } from './ProjectsPane';
 import { CodeStudioPane } from './CodeStudioPane';
 import { FeaturesPane } from './FeaturesPane';
+import { StudioPane } from './StudioPane';
 import * as hf from '../localai/hf';
 
 const STATE_LABEL: Record<string, string> = { idle: '待機', thinking: '思考', working: '作業', waiting: '待機中', blocked: '問題発生', done: '完了' };
@@ -19,12 +20,12 @@ export function ModalRoot() {
   const Body = ({
     create: CreateBot, editAvatar: EditAvatar, settings: Settings, memory: MemoryModal,
     routines: RoutinesModal, apps: ConnectApps, skills: SkillsModal, states: StatePreview,
-    models: ModelsModal, projects: ProjectsModal, code: CodeModal, features: FeaturesModal,
+    models: ModelsModal, projects: ProjectsModal, code: CodeModal, features: FeaturesModal, studio: StudioModal,
   } as any)[modal.kind];
   if (!Body) return null;
   return (
     <div className="scrim" onClick={close}>
-      <div className={`modal ${['settings', 'routines', 'apps', 'skills', 'states', 'models', 'projects', 'code', 'features'].includes(modal.kind) ? 'wide' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${['settings', 'routines', 'apps', 'skills', 'states', 'models', 'projects', 'code', 'features', 'studio'].includes(modal.kind) ? 'wide' : ''}`} onClick={(e) => e.stopPropagation()}>
         <Body data={modal.data} close={close} />
       </div>
     </div>
@@ -432,6 +433,15 @@ function FeaturesModal({ close }: any) {
     <>
       <Header title="機能一覧（実装状況）" close={close} />
       <div className="modal-body"><FeaturesPane /></div>
+    </>
+  );
+}
+
+function StudioModal({ close }: any) {
+  return (
+    <>
+      <Header title="スタジオ（音楽・3D・性能）" close={close} />
+      <div className="modal-body"><StudioPane /></div>
     </>
   );
 }

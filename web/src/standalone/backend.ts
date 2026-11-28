@@ -21,7 +21,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // team's work down so it is gentle on the device — less CPU and battery. Work keeps
 // advancing, just more slowly; it speeds back up when the app is in front again.
 const bgFactor = () => (typeof document !== 'undefined' && document.hidden ? 6 : 1);
-const pace = (ms: number) => sleep(ms * bgFactor());
+// 性能モード（第26章）：前面での基本速度にも反映する（超軽量=ゆっくり、ULTIMATE=最速）。
+const PERF_FACTOR: Record<string, number> = { ultralight: 2.5, light: 1.6, balanced: 1, high: 0.7, ultimate: 0.5 };
+const perfFactor = () => PERF_FACTOR[(S.settings && S.settings.perfMode) || 'balanced'] ?? 1;
+const pace = (ms: number) => sleep(ms * bgFactor() * perfFactor());
 
 const SHAPES = ['blob', 'circle', 'capsule', 'triangle', 'teardrop', 'flower', 'square', 'sparkle', 'clover', 'heart', 'house', 'star'];
 const PALETTE = ['#777777', '#1183FF', '#FF6702', '#111111', '#01C971', '#93643A', '#7C5CFF', '#E0245E', '#00B5C9', '#F4B400', '#8E44AD', '#2E7D32'];

@@ -54,6 +54,7 @@ export function Sidebar() {
         <button className="icon-btn" title="AIモデル（ダウンロード）" onClick={() => actions.setModal('models')}>🧠</button>
         <button className="icon-btn" title="プロジェクト" onClick={() => actions.setModal('projects')}>📁</button>
         <button className="icon-btn" title="コードスタジオ" onClick={() => actions.setModal('code')}>💻</button>
+        <button className="icon-btn" title="スタジオ（音楽・3D・性能）" onClick={() => actions.setModal('studio')}>🎨</button>
         <button className="icon-btn" title="機能一覧（実装状況）" onClick={() => actions.setModal('features')}>📋</button>
         <button className="icon-btn" title="設定" onClick={() => actions.setModal('settings')}>⚙</button>
       </div>
