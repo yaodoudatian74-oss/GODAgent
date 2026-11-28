@@ -23,6 +23,7 @@ const remoteApi = {
   // Autonomous projects + teams exist only in the standalone (app) build.
   projects: async () => [],
   teams: async () => [],
+  company: async () => ({ total: 0, departments: [] }),
   createProject: async (_k: string, _r: string) => ({ id: null }),
   approveProject: async (_id: string) => ({ ok: false }),
   reviseProject: async (_id: string, _n: string) => ({ ok: false }),

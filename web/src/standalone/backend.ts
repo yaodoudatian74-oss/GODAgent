@@ -8,7 +8,7 @@
 // rest of the app is unchanged.
 
 import { generate as hfGenerate } from '../localai/hf';
-import { TEAMS, TeamKind, memberShape, memberColor } from './employees';
+import { TEAMS, TeamKind, memberShape, memberColor, DEPARTMENTS } from './employees';
 import { makeGame, pickGenre, recordVideo } from './deliverables';
 
 type Fn = (...a: any[]) => any;
@@ -41,7 +41,7 @@ const APPS = [
 ];
 const APP_BY_ID: Record<string, any> = Object.fromEntries(APPS.map((a) => [a.id, a]));
 
-interface Store { bots: Record<string, any>; messages: Record<string, any[]>; memory: Record<string, any[]>; skills: Record<string, any>; routines: Record<string, any>; connections: Record<string, any>; rules: any[]; files: Record<string, any>; projects: Record<string, any>; teamGroups?: Record<string, string>; settings: any; }
+interface Store { bots: Record<string, any>; messages: Record<string, any[]>; memory: Record<string, any[]>; skills: Record<string, any>; routines: Record<string, any>; connections: Record<string, any>; rules: any[]; files: Record<string, any>; projects: Record<string, any>; teamGroups?: Record<string, string>; deptRosters?: Record<string, string[]>; settings: any; }
 
 function emptyStore(): Store {
   return { bots: {}, messages: {}, memory: {}, skills: {}, routines: {}, connections: {}, rules: [], files: {}, projects: {},
@@ -136,6 +136,27 @@ function seedEmployees() {
     const leader = S.bots[memberIds[0]];
     S.messages[g.id] = [{ id: uid('m_'), role: 'bot', botId: leader.id, type: 'text', text: `社長、${team.name}です。ご依頼をいただければ、メンバーで分担して制作し、完成物をご確認いただけます。`, ts: now() - 3600000 }];
     S.teamGroups ||= {}; S.teamGroups[team.kind] = g.id;
+  }
+  // GODAgent ULTIMATE: seed the wider company (63 more employees → 100 total).
+  // Roster members with individual chat; the heavy per-department "studios" are
+  // not faked — only the four creative teams above run the real production flow.
+  S.deptRosters ||= {};
+  let empNo = 38; // existing 37 are 1–37
+  for (const dept of DEPARTMENTS) {
+    const ids: string[] = [];
+    dept.members.forEach((m) => {
+      const b = bot({
+        name: m.name, title: m.role, shape: memberShape(ci), color: memberColor(ci),
+        hidden: true, dept: dept.key, deptName: dept.name, role: m.role, leader: !!m.leader,
+        empNo, level: 1, exp: 0, specialty: m.skill,
+      });
+      ci++; empNo++;
+      S.bots[b.id] = b;
+      S.messages[b.id] = [{ id: uid('m_'), role: 'bot', botId: b.id, type: 'text', text: `社長、${dept.name}の${m.role}、${m.name}です。${m.skill}を担当いたします。`, ts: now() - 86400000 }];
+      S.memory[b.id] = [{ id: uid('mem_'), kind: 'instruction', text: `${dept.name}・${m.role}。${m.persona} 専門：${m.skill}。社長には丁寧に報告する。`, ts: now() }];
+      ids.push(b.id);
+    });
+    S.deptRosters[dept.key] = ids;
   }
 }
 const teamGroupId = (kind: string) => (S.teamGroups || {})[kind];
@@ -540,6 +561,15 @@ export const api = {
   async stop(id: string) { active.delete(id); return { ok: true }; },
   async projects() { return Object.values(S.projects).sort((a: any, b: any) => b.createdAt - a.createdAt); },
   async teams() { return TEAMS.map((t) => ({ kind: t.kind, name: t.name, color: t.color, shape: t.shape, groupId: teamGroupId(t.kind), members: (S.bots[teamGroupId(t.kind)!]?.members || []).map((id: string) => ({ id, name: S.bots[id]?.name, role: S.bots[id]?.title })) })); },
+  async company() {
+    const mem = (id: string) => { const b = S.bots[id] || {}; return { id, name: b.name, role: b.title || b.role, empNo: b.empNo, level: b.level, specialty: b.specialty, leader: !!b.leader }; };
+    const teamDepts = TEAMS.map((t) => ({ key: t.kind, name: t.name, color: t.color, shape: t.shape, studio: true, groupId: teamGroupId(t.kind), members: (S.bots[teamGroupId(t.kind)!]?.members || []).map(mem) }));
+    const rosters = (S.deptRosters || {});
+    const newDepts = DEPARTMENTS.map((d) => ({ key: d.key, name: d.name, color: d.color, shape: d.shape, studio: false, members: (rosters[d.key] || []).map(mem) }));
+    const depts = [...newDepts.filter((d) => d.key === 'exec' || d.key === 'manager'), ...teamDepts, ...newDepts.filter((d) => d.key !== 'exec' && d.key !== 'manager')];
+    const total = depts.reduce((n, d) => n + d.members.length, 0);
+    return { total, departments: depts };
+  },
   async createProject(teamKind: string, request: string) { const id = startProject(teamKind as any, request); return { id }; },
   async reviseProject(id: string, note: string) { const p = S.projects[id]; if (!p) return { ok: false }; gpost(p.groupId, p.tasks?.[0]?.memberId || S.bots[p.groupId].members[0], { type: 'text', text: `社長、修正指示を承りました：「${note.slice(0, 80)}」。再制作いたします。` }); startProject(p.teamKind, p.request + '（修正指示：' + note + '）', id); return { ok: true }; },
   async approveProject(id: string) { const p = S.projects[id]; if (!p) return { ok: false }; p.status = 'approved'; saveProj(p); gpost(p.groupId, S.bots[p.groupId].members[0], { type: 'text', text: '社長、ご承認ありがとうございます。正式に完成といたします。' }); return { ok: true }; },

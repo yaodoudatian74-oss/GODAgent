@@ -15,8 +15,11 @@ export function ProjectsPane() {
   const [team, setTeam] = useState('game');
   const [req, setReq] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [company, setCompany] = useState<any>(null);
+  const [orgOpen, setOrgOpen] = useState(false);
+  const [deptOpen, setDeptOpen] = useState<string | null>(null);
 
-  useEffect(() => { api.teams().then(setTeams); }, []);
+  useEffect(() => { api.teams().then(setTeams); api.company().then(setCompany); }, []);
 
   if (!STANDALONE) return <div className="muted">AI社員チーム（自律プロジェクト）はアプリ版（APK／オフライン版）で利用できます。サーバー版では無効です。</div>;
 
@@ -29,7 +32,28 @@ export function ProjectsPane() {
   return (
     <>
       <div className="muted" style={{ marginBottom: 12 }}>
-        37人のAI社員が4チームに分かれています。チームに依頼すると、会議→分担→制作→相互確認→提出まで自動で進み、完成物（遊べるゲーム・画像・動画）をここで確認できます。チームのグループチャットでも同じ依頼ができます。
+        AI社員{company?.total || 100}人が部署に分かれています。制作4チーム（ゲーム・画像・動画・編集）に依頼すると、会議→分担→制作→相互確認→提出まで自動で進み、完成物（遊べるゲーム・画像・動画）をここで確認できます。チームのグループチャットでも同じ依頼ができます。
+      </div>
+
+      <div className="list-item" style={{ display: 'block', marginBottom: 12 }}>
+        <div className="row-between" onClick={() => setOrgOpen(!orgOpen)} style={{ cursor: 'pointer' }}>
+          <div className="grow"><b>会社・組織（AI社員 {company?.total || '…'}人）</b><div className="muted">副社長・マネージャー・各部署。{orgOpen ? '閉じる' : 'タップで一覧'}</div></div>
+          <span className="muted">{orgOpen ? '▲' : '▼'}</span>
+        </div>
+        {orgOpen && (company?.departments || []).map((d: any) => (
+          <div key={d.key} style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+            <div className="row-between" onClick={() => setDeptOpen(deptOpen === d.key ? null : d.key)} style={{ cursor: 'pointer' }}>
+              <div className="grow"><b style={{ fontSize: 13 }}>{d.name}</b> <span className="muted">{d.members.length}人{d.studio ? '・自動制作対応' : ''}</span></div>
+              <span className="muted">{deptOpen === d.key ? '－' : '＋'}</span>
+            </div>
+            {deptOpen === d.key && d.members.map((m: any) => (
+              <div key={m.id} className="row-between" style={{ fontSize: 13, padding: '3px 0 3px 8px' }}>
+                <span>{m.leader ? '★ ' : ''}{m.name}・{m.role}{m.empNo ? `（No.${m.empNo}）` : ''}</span>
+                <button className="btn sm" onClick={() => { actions.select(m.id); actions.setModal(null); }}>個別チャット</button>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
 
       <div className="field"><label>新しい依頼</label>
