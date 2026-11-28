@@ -25,12 +25,16 @@ fetch() { for a in 1 2 3 4 5; do c=$(curl -s --max-time 120 -o "$2" -w "%{http_c
 [ -f dx.jar ] || fetch https://repo1.maven.org/maven2/com/jakewharton/android/repackaged/dalvik-dx/16.0.1/dalvik-dx-16.0.1.jar dx.jar
 
 echo "==> Building standalone web bundle"
-( cd ../web && VITE_STANDALONE=1 VITE_SINGLEFILE=1 npx vite build --base=./ --outDir dist-artifact >/dev/null )
+# Multi-file build (NOT single-file): the single-file build inlines the JS, which
+# breaks onnxruntime-web's wasm resolution inside the WebView, so on-device models
+# never load. The multi-file build keeps the ORT .wasm as a sibling and resolves it
+# correctly, so Hugging Face models download and run.
+( cd ../web && VITE_STANDALONE=1 npx vite build --base=./ --outDir dist-standalone >/dev/null )
 
 echo "==> Staging assets + density launcher icons (from the GODAgent logo)"
 rm -rf assets res classes build && mkdir -p assets/www/computer-apps classes
-# whole single-file build: index.html + ONNX Runtime .wasm (on-device AI) + computer apps + icons
-cp -r ../web/dist-artifact/. assets/www/ && rm -f assets/www/sw.js
+# multi-file build: index.html + assets/ (JS, CSS, ONNX Runtime .wasm) + computer apps + icons
+cp -r ../web/dist-standalone/. assets/www/ && rm -f assets/www/sw.js
 python3 - <<'PY'
 from PIL import Image
 im=Image.open('../web/public/icons/icon-512.png').convert('RGBA')
