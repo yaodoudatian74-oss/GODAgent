@@ -12,6 +12,7 @@ export function Card({ m }: { m: Msg }) {
     case 'image': return <ImageCard m={m} />;
     case 'game': return <GameCard m={m} />;
     case 'video': return <VideoCard m={m} />;
+    case 'think': return <ThinkCard m={m} />;
     case 'handoff': return <HandoffCard m={m} />;
     case 'file': return <FileCard m={m} />;
     case 'error': return <ErrorCard m={m} />;
@@ -154,6 +155,24 @@ function VideoCard({ m }: { m: Msg }) {
       {v.dataUrl && <video src={v.dataUrl} controls playsInline style={{ width: '100%', borderRadius: 10, border: '1px solid var(--border)', background: '#000' }} />}
       <div className="muted" style={{ marginTop: 6 }}>{v.title} ・ WebM</div>
       {v.dataUrl && <div className="btn-row"><button className="btn sm" onClick={download}>動画をダウンロード</button></div>}
+    </div>
+  );
+}
+
+function ThinkCard({ m }: { m: Msg }) {
+  const t = (m as any).think || {};
+  return (
+    <div className="card2 bot">
+      <Head k={`高度思考（${t.levelName || ''}）`} badge={statusBadge('done')} />
+      {t.goal && <div style={{ fontSize: 14 }}><b>目的</b>：{t.goal}</div>}
+      {Array.isArray(t.approaches) && t.approaches.length > 0 && <div style={{ marginTop: 8 }}>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 2 }}>検討した案</div>
+        {t.approaches.map((a: any, i: number) => <div key={i} style={{ fontSize: 13, margin: '2px 0' }}>・{a.angle}：{a.text}{a.by ? `（${a.by}）` : ''}</div>)}
+      </div>}
+      {t.critique && <div style={{ fontSize: 13, marginTop: 8 }}><b>相互評価</b>：{t.critique}</div>}
+      {t.conclusion && <div style={{ fontSize: 14, marginTop: 10, padding: '8px 10px', background: 'var(--selected)', borderRadius: 8 }}><b>結論</b>：{t.conclusion}</div>}
+      <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>信頼度 <b style={{ color: 'var(--text)' }}>{t.confidence}%</b>（保証値ではありません）<br />{t.basis}</div>
+      {!t.modelUsed && <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>※ AIモデル未導入のため簡易整理です。設定→モデルで導入すると、より深い推論になります。</div>}
     </div>
   );
 }

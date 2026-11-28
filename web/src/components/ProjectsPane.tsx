@@ -18,6 +18,8 @@ export function ProjectsPane() {
   const [company, setCompany] = useState<any>(null);
   const [orgOpen, setOrgOpen] = useState(false);
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
+  const [tq, setTq] = useState('');
+  const [tl, setTl] = useState(5);
 
   useEffect(() => { api.teams().then(setTeams); api.company().then(setCompany); }, []);
 
@@ -27,6 +29,13 @@ export function ProjectsPane() {
     if (!req.trim()) return;
     const r = await api.createProject(team, req.trim());
     setReq(''); if (r?.id) setOpen(r.id);
+  }
+
+  async function startThink() {
+    if (!tq.trim()) return;
+    const r = await api.think(tq.trim(), tl);
+    setTq('');
+    if (r?.groupId) { actions.select(r.groupId); actions.setModal(null); }
   }
 
   return (
@@ -54,6 +63,20 @@ export function ProjectsPane() {
             ))}
           </div>
         ))}
+      </div>
+
+      <div className="field"><label>高度思考（熟考・社員協力）</label>
+        <div className="muted" style={{ marginBottom: 6, fontSize: 12 }}>むずかしい判断・設計・比較を、副社長＋マネージャー＋専門社員が複数案→相互評価→結論まで熟考します。結論には根拠つきの信頼度を表示します。</div>
+        <div className="seg" style={{ flexWrap: 'wrap', marginBottom: 8 }}>
+          {[[3, '専門'], [4, '高度'], [5, '深度'], [6, '超深度']].map(([v, l]) => (
+            <button key={v as number} className={tl === v ? 'on' : ''} onClick={() => setTl(v as number)}>{l as string}</button>
+          ))}
+        </div>
+        <div className="btn-row" style={{ marginTop: 0 }}>
+          <input style={{ flex: 1, border: '1px solid var(--border-strong)', borderRadius: 10, padding: '9px 11px', background: 'var(--panel)', color: 'var(--text)' }}
+            value={tq} onChange={(e) => setTq(e.target.value)} placeholder="例：このアプリに次に足すべき機能は？" onKeyDown={(e) => e.key === 'Enter' && startThink()} />
+          <button className="btn primary" onClick={startThink}>熟考開始</button>
+        </div>
       </div>
 
       <div className="field"><label>新しい依頼</label>

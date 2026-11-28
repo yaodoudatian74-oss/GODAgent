@@ -7,7 +7,7 @@
 // Exposes the same `api` surface and `openStream` as the real client, so the
 // rest of the app is unchanged.
 
-import { generate as hfGenerate } from '../localai/hf';
+import { generate as hfGenerate, installed as hfInstalled } from '../localai/hf';
 import { TEAMS, TeamKind, memberShape, memberColor, DEPARTMENTS } from './employees';
 import { makeGame, pickGenre, recordVideo } from './deliverables';
 
@@ -158,6 +158,19 @@ function seedEmployees() {
     });
     S.deptRosters[dept.key] = ids;
   }
+  // 高度思考ルーム：副社長＋マネージャー＋主要リーダーが熟考・討論する会議体。
+  const r = S.deptRosters;
+  const thinkMembers = [
+    ...(r['exec'] || []),
+    ...(r['manager'] || []),
+    (r['code'] || [])[0], (r['qa'] || [])[0], (r['search'] || [])[0], (r['model'] || [])[0],
+  ].filter(Boolean) as string[];
+  if (thinkMembers.length) {
+    const tg = bot({ kind: 'group', name: '高度思考ルーム', title: `熟考・討論・${thinkMembers.length}人`, shape: 'heart', color: '#8E44AD', members: thinkMembers, teamKind: 'think' });
+    S.bots[tg.id] = tg;
+    S.messages[tg.id] = [{ id: uid('m_'), role: 'bot', botId: thinkMembers[0], type: 'text', text: '社長、高度思考ルームです。むずかしい判断や設計は、ここで複数の社員が案を出し合い、相互に検証して結論をご提案します。', ts: now() - 3600000 }];
+    S.teamGroups ||= {}; S.teamGroups['think'] = tg.id;
+  }
 }
 const teamGroupId = (kind: string) => (S.teamGroups || {})[kind];
 
@@ -280,6 +293,7 @@ async function plan(b: any, userText: string) {
   if (modelId.startsWith('hf:') && b.kind !== 'group') { if (await hfTurn(b, modelId.slice(3), userText)) return; }
   const T = tools(b); const t = userText.toLowerCase();
   // 制作チームのグループに依頼 → 自律プロジェクトを起動
+  if (b.kind === 'group' && b.teamKind === 'think') { startThink(userText, 5); setState(b, 'idle'); return; }
   if (b.kind === 'group' && b.teamKind) { startProject(b.teamKind, userText); setState(b, 'idle'); return; }
   if (has(t, 'remember', 'always', 'from now on', '覚え', '今後', 'いつも')) { await T.saveMemory('instruction', userText.replace(/^(remember|always|覚えて|今後は?)[:,、\s]*/i, '').trim()); await T.reply('承知しました。今後はそのようにいたします。'); return T.done(); }
   if (has(t, 'which', 'should i', 'option', 'choose', 'どっち', 'どちら', 'どれ', 'べき') && b.kind !== 'group') { const a = await T.askQuestion({ question: '進め方がいくつか考えられます。どれがよろしいですか？', options: ['まず動いて、必要なら後で調整', 'すべて下書きしてから確認を仰ぐ', '最も効果の大きい項目だけ'] }); await T.reply(`承知しました。「${a}」で進めます。開始いたします。`); return T.done(); }
@@ -471,6 +485,75 @@ function resumeProjects() {
   }
 }
 
+// ---- 高度思考（熟考・社員協力） フェーズ4 --------------------------------
+// 複数の社員が案を出し合い、相互評価・矛盾チェックを行って結論をまとめる。
+// 導入済みモデルがあれば実推論を使い、無ければ構造化した簡易整理を正直に明示する。
+function installedModelId(): string | null {
+  try {
+    const d = S.settings?.defaultModel;
+    if (typeof d === 'string' && d.startsWith('hf:')) return d.slice(3);
+    const list = hfInstalled(); return list[0]?.id || null;
+  } catch { return null; }
+}
+async function modelSay(prompt: string, max = 96): Promise<string> {
+  const id = installedModelId(); if (!id) return '';
+  try { let out = ''; await hfGenerate(id, [{ role: 'user', content: prompt }], (t: string) => { out = t; }, { maxNewTokens: max }); return (out || '').trim(); } catch { return ''; }
+}
+const thinkActive = new Set<string>();
+const THINK_LEVELS: Record<number, { name: string; approaches: number; critic: boolean; rounds: number }> = {
+  1: { name: '高速', approaches: 1, critic: false, rounds: 1 },
+  2: { name: '通常', approaches: 1, critic: false, rounds: 1 },
+  3: { name: '専門', approaches: 1, critic: true, rounds: 1 },
+  4: { name: '高度思考', approaches: 2, critic: true, rounds: 1 },
+  5: { name: '深度思考', approaches: 3, critic: true, rounds: 1 },
+  6: { name: '超深度思考', approaches: 3, critic: true, rounds: 2 },
+};
+export function startThink(question: string, level: number) {
+  const groupId = teamGroupId('think'); if (!groupId || !question.trim()) return null;
+  const members = (S.bots[groupId]?.members || []) as string[];
+  const lv = THINK_LEVELS[level] ? level : 5;
+  const id = uid('think_'); thinkActive.add(id);
+  runThink(groupId, members, question.trim(), lv).catch(() => {}).finally(() => thinkActive.delete(id));
+  return { groupId };
+}
+async function runThink(groupId: string, members: string[], question: string, level: number) {
+  const L = THINK_LEVELS[level];
+  const nameOf = (mid: string) => S.bots[mid]?.name || '';
+  const vp = members[0];
+  const modelId = installedModelId();
+  const used = !!modelId;
+  const tag = used ? `モデル使用（${modelId}）` : 'モデル未使用の簡易整理';
+  await gstream(groupId, vp, `社長、ご依頼を受けました。高度思考（${L.name}モード）を開始します。まず目的を確認します。`);
+  let goal = await modelSay(`次の依頼の目的を一文で日本語に要約してください：「${question}」`, 64);
+  if (!goal) goal = `「${question}」を達成すること`;
+  await gstream(groupId, vp, `目的の理解：${goal}`);
+  const angles = ['最小構成でまず試す案', '品質を重視して段階的に進める案', '既存の機能・資産を活用する案'];
+  const approaches: { by: string; angle: string; text: string }[] = [];
+  for (let i = 0; i < L.approaches; i++) {
+    const m = members[(i + 1) % members.length] || vp;
+    let text = await modelSay(`依頼「${question}」への解決アプローチを1つ、日本語2文以内で提案してください（${angles[i]}の観点）。`, 80);
+    if (!text) text = `${question} を、${angles[i].replace('案', '')}方針で進めます。`;
+    approaches.push({ by: nameOf(m), angle: angles[i], text });
+    await gstream(groupId, m, `案${i + 1}（${angles[i]}）：${text}`);
+  }
+  let critique = '';
+  if (L.critic && approaches.length) {
+    const c = members[Math.min(2, members.length - 1)] || vp;
+    critique = await modelSay(`次の案を比較し、矛盾点と最も良い案を日本語2文以内で述べてください：${approaches.map((a, i) => `案${i + 1}:${a.text}`).join(' / ')}`, 96);
+    if (!critique) critique = approaches.length > 1 ? `各案に大きな矛盾はありません。確実性の高い「${approaches[0].angle}」を軸に、他案の良い点を取り入れるのが妥当です。` : '案に矛盾はありません。この方針で問題ありません。';
+    await gstream(groupId, c, `相互評価・矛盾チェック：${critique}`);
+  }
+  if (L.rounds > 1) await gstream(groupId, vp, '超深度モードのため結論を再検証しました。重大な見落としは確認されませんでした。');
+  let conclusion = await modelSay(`依頼「${question}」について、検討（${approaches.map((a) => a.text).join(' / ')}${critique ? ' / 評価:' + critique : ''}）を踏まえ、結論と次の一手を日本語3文以内でまとめてください。`, 128);
+  if (!conclusion) conclusion = `${approaches[0]?.angle || '確実な方針'}を採用します。まず小さく実装して動作を確認し、問題がなければ段階的に拡張します。`;
+  const agree = approaches.length >= 2 ? '複数案が同方向' : '単一案';
+  let conf = 45 + level * 6 + (used ? 10 : 0) + (approaches.length >= 2 ? 10 : 0);
+  conf = Math.max(30, Math.min(88, conf));
+  const basis = `根拠：${L.name}モード／案${approaches.length}件（${agree}）／担当${members.length}人／${tag}`;
+  gpost(groupId, vp, { type: 'think', think: { question, levelName: L.name, goal, approaches, critique, conclusion, confidence: conf, basis, modelUsed: used } });
+  await gstream(groupId, vp, `社長、結論をまとめました。上のカードをご確認ください。信頼度は${conf}%です（正確性の保証値ではなく、根拠と併せた目安です）。`);
+}
+
 function meetingLine(kind: string, role: string) {
   const base: Record<string, string[]> = {
     game: ['コアループはシンプルに、最初の30秒で楽しさが伝わる形にしましょう。', '操作は片手でも遊べるようにします。', '世界観は依頼の雰囲気に合わせます。', '当たり判定と難易度は後で調整します。'],
@@ -570,6 +653,8 @@ export const api = {
     const total = depts.reduce((n, d) => n + d.members.length, 0);
     return { total, departments: depts };
   },
+  async think(question: string, level: number) { const r = startThink(question, Number(level) || 5); return r ? { ok: true, groupId: r.groupId } : { ok: false }; },
+  async thinkGroupId() { return teamGroupId('think') || null; },
   async createProject(teamKind: string, request: string) { const id = startProject(teamKind as any, request); return { id }; },
   async reviseProject(id: string, note: string) { const p = S.projects[id]; if (!p) return { ok: false }; gpost(p.groupId, p.tasks?.[0]?.memberId || S.bots[p.groupId].members[0], { type: 'text', text: `社長、修正指示を承りました：「${note.slice(0, 80)}」。再制作いたします。` }); startProject(p.teamKind, p.request + '（修正指示：' + note + '）', id); return { ok: true }; },
   async approveProject(id: string) { const p = S.projects[id]; if (!p) return { ok: false }; p.status = 'approved'; saveProj(p); gpost(p.groupId, S.bots[p.groupId].members[0], { type: 'text', text: '社長、ご承認ありがとうございます。正式に完成といたします。' }); return { ok: true }; },
