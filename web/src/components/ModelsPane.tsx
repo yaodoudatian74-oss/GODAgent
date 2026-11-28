@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore, getState } from '../store';
 import { api, STANDALONE } from '../api';
 import * as hf from '../localai/hf';
+import { BUILTIN } from '../localai/builtin';
 
 type Row = { id: string; label?: string; note?: string; downloads?: number };
 
@@ -32,7 +33,18 @@ export function ModelsPane() {
       </div>
       {!STANDALONE && <div className="muted" style={{ marginBottom: 12, color: 'var(--danger)' }}>※ サーバー版では Bot への割り当てはできません。アプリ版（APK／オフライン版）でご利用ください。</div>}
 
-      <div className="field"><label>既定のモデル（Bot ごとの指定が無い場合）</label>
+      <div className="section-label" style={{ padding: '6px 0' }}>内蔵モデル（AIチーム用・インストール済み）</div>
+      <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>
+        各チーム（ゲーム・画像・動画・編集）に<b>最初から割り当て済み</b>のオリジナル小型モデルです。ダウンロード不要・完全オフラインで動きます。小型のため短い案を生成します（文脈理解はありません）。
+      </div>
+      {BUILTIN.map((b) => (
+        <div key={b.id} className="list-item" style={{ padding: '8px 12px' }}>
+          <div className="grow"><b style={{ wordBreak: 'break-all' }}>{b.label}</b><div className="muted">{b.note}・内蔵</div></div>
+          <span className="pill-badge done"><span className="d" />インストール済み</span>
+        </div>
+      ))}
+
+      <div className="field" style={{ marginTop: 12 }}><label>既定のモデル（Bot ごとの指定が無い場合）</label>
         <select value={def} onChange={(e) => api.settings({ defaultModel: e.target.value })}>
           <option value="sim">内蔵シミュレーション（ダウンロード不要）</option>
           {inst.map((m) => <option key={m.id} value={'hf:' + m.id}>{m.id}</option>)}

@@ -10,6 +10,7 @@
 import { generate as hfGenerate } from '../localai/hf';
 import { TEAMS, TeamKind, memberShape, memberColor } from './employees';
 import { makeGame, pickGenre, recordVideo } from './deliverables';
+import { generateForRole } from '../localai/builtin';
 
 type Fn = (...a: any[]) => any;
 
@@ -454,18 +455,23 @@ async function produce(p: any, members: any[], set: (s: string, n: number) => vo
       if (r.includes('キャラクター') || r.includes('マップ')) { gpost(p.groupId, members[i].id, { type: 'image', img: { dataUrl: imgUrl(r + ' ' + p.request), caption: `${r}：自動生成` } }); markDone(i, '素材を生成'); }
       else markDone(i, '担当分を反映');
     }
-    const genre = pickGenre(p.request);
-    const spec = { title: p.title || 'GODAgent Game', theme: p.request.slice(0, 40), color: TEAMS.find((t) => t.kind === 'game')!.color, genre };
+    const idea = await generateForRole('game', p.request);
+    if (idea) await gstream(p.groupId, leader.id, `アイデア（内蔵AIモデル）：${idea}`);
+    const genre = pickGenre(idea || p.request);
+    const spec = { title: p.title || 'GODAgent Game', theme: (idea || p.request).slice(0, 40), color: TEAMS.find((t) => t.kind === 'game')!.color, genre };
     const html = makeGame(spec);
     p.deliverables = [{ kind: 'game', title: spec.title, genre, html }];
     gpost(p.groupId, leader.id, { type: 'game', game: { title: spec.title, genre, html } });
   } else if (p.teamKind === 'image') {
     const kinds = ['キービジュアル', 'キャラクター', '背景', 'サムネイル'];
+    const prompt = await generateForRole('image', p.request);
+    if (prompt) await gstream(p.groupId, leader.id, `画像プロンプト（内蔵AIモデル）：${prompt}`);
+    const seed = prompt || p.request;
     p.deliverables = [];
     for (let i = 0; i < members.length; i++) {
       if (stopped(p)) return; markWorking(i);
       if (members[i].role.includes('生成') || members[i].role.includes('合成') || members[i].role.includes('構図')) {
-        const k = kinds[i % kinds.length]; const url = imgUrl(k + ' ' + p.request);
+        const k = kinds[i % kinds.length]; const url = imgUrl(k + ' ' + seed);
         p.deliverables.push({ kind: 'image', caption: k, dataUrl: url });
         gpost(p.groupId, members[i].id, { type: 'image', img: { dataUrl: url, caption: `${k}（自動生成）` } });
       }
@@ -473,7 +479,9 @@ async function produce(p: any, members: any[], set: (s: string, n: number) => vo
     }
   } else if (p.teamKind === 'videomake') {
     for (let i = 0; i < members.length - 1; i++) { if (stopped(p)) return; markWorking(i); await sleep(250); markDone(i, '完了'); }
-    const scenes = scriptScenes(p.request);
+    const scriptLine = await generateForRole('video', p.request);
+    if (scriptLine) await gstream(p.groupId, leader.id, `台本の種（内蔵AIモデル）：${scriptLine}`);
+    const scenes = scriptScenes(p.request, scriptLine);
     gpost(p.groupId, leader.id, { type: 'text', text: '台本（絵コンテ）\n' + scenes.map((s, i) => `${i + 1}. ${s}`).join('\n') });
     const res = await recordVideo({ title: p.title || 'GODAgent', scenes, color: TEAMS.find((t) => t.kind === 'videomake')!.color });
     if (res.dataUrl) { p.deliverables = [{ kind: 'video', caption: p.title, dataUrl: res.dataUrl, mime: res.mime }]; gpost(p.groupId, leader.id, { type: 'video', video: { title: p.title, dataUrl: res.dataUrl, mime: res.mime } }); }
@@ -482,7 +490,9 @@ async function produce(p: any, members: any[], set: (s: string, n: number) => vo
   } else if (p.teamKind === 'videoedit') {
     for (let i = 0; i < members.length; i++) { if (stopped(p)) return; markWorking(i); await sleep(150); markDone(i, '計画作成'); }
     const hasVideo = (p.inputFiles || []).some((f: any) => (f.mime || '').startsWith('video'));
-    const plan = editPlan(p.request);
+    const editIdea = await generateForRole('edit', p.request);
+    if (editIdea) await gstream(p.groupId, leader.id, `編集の方針（内蔵AIモデル）：${editIdea}`);
+    const plan = editPlan(p.request, editIdea);
     gpost(p.groupId, leader.id, { type: 'text', text: '編集プラン\n' + plan.map((s, i) => `${i + 1}. ${s}`).join('\n') });
     gpost(p.groupId, leader.id, { type: 'error', text: '正直なご報告：' + (hasVideo ? '素材を受領しましたが、' : '') + 'プロ向けの本格的な映像編集（カット・合成・書き出し等）は、端末ブラウザ内での実行能力の制約により本アプリ単体では実処理まで行えません。上記は実行可能な編集プランです。実処理が必要な場合はエンコード環境が必要です。' });
     p.deliverables = [{ kind: 'note', text: '編集プラン（実編集処理は端末制約により未対応）' }];
@@ -491,12 +501,13 @@ async function produce(p: any, members: any[], set: (s: string, n: number) => vo
 }
 
 function imgUrl(prompt: string) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(makeImage(prompt)); }
-function scriptScenes(req: string): string[] {
-  const t = req.slice(0, 24) || 'GODAgent';
+function scriptScenes(req: string, modelLine?: string): string[] {
+  const t = (modelLine && modelLine.trim()) || req.slice(0, 24) || 'GODAgent';
   return [`${t}`, '課題：いまの悩みを提示', '解決：GODAgent が手伝います', '特長：チームで自動制作', 'さあ、始めましょう'];
 }
-function editPlan(req: string): string[] {
-  return ['不要部分・無音の自動カット', '要点テロップと字幕の付与', 'BGMと効果音の追加', '色・明るさ・音量の補正', '書き出し設定（1080p / MP4・WebM）の確認'];
+function editPlan(req: string, modelLine?: string): string[] {
+  const base = ['不要部分・無音の自動カット', '要点テロップと字幕の付与', 'BGMと効果音の追加', '色・明るさ・音量の補正', '書き出し設定（1080p / MP4・WebM）の確認'];
+  return modelLine && modelLine.trim() ? [modelLine.trim(), ...base] : base;
 }
 
 // ---- routine scheduler --------------------------------------------------

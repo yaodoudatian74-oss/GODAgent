@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { App } from './App';
 import { actions } from './store';
+import './localai/builtin';
 
 actions.boot();
 
