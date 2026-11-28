@@ -26,6 +26,7 @@ const remoteApi = {
   company: async () => ({ total: 0, departments: [] }),
   think: async (_q: string, _l: number) => ({ ok: false }),
   thinkGroupId: async () => null,
+  genCode: async (_lang: string, _req: string) => ({ code: '', modelUsed: false }),
   createProject: async (_k: string, _r: string) => ({ id: null }),
   approveProject: async (_id: string) => ({ ok: false }),
   reviseProject: async (_id: string, _n: string) => ({ ok: false }),

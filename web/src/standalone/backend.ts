@@ -446,6 +446,17 @@ export function startProject(teamKind: TeamKind, request: string, existing?: str
 }
 const stopped = (p: any) => p.status === 'stopped';
 
+// Phase 12 — training: completing real work grants experience; level = 1 + exp/100
+// (capped at 100). Levels are shown in the org view, so growth is tied to actual work.
+function awardExp(memberIds: string[], amount: number) {
+  for (const id of memberIds) {
+    const b = S.bots[id]; if (!b) continue;
+    b.exp = (b.exp || 0) + amount;
+    b.level = Math.max(1, Math.min(100, 1 + Math.floor(b.exp / 100)));
+  }
+  save();
+}
+
 async function runProject(p: any, members: any[]) {
   const leader = members[0];
   const set = (status: string, progress: number) => { p.status = status; p.progress = progress; saveProj(p); };
@@ -551,7 +562,28 @@ async function runThink(groupId: string, members: string[], question: string, le
   conf = Math.max(30, Math.min(88, conf));
   const basis = `根拠：${L.name}モード／案${approaches.length}件（${agree}）／担当${members.length}人／${tag}`;
   gpost(groupId, vp, { type: 'think', think: { question, levelName: L.name, goal, approaches, critique, conclusion, confidence: conf, basis, modelUsed: used } });
+  awardExp(members, 15);
   await gstream(groupId, vp, `社長、結論をまとめました。上のカードをご確認ください。信頼度は${conf}%です（正確性の保証値ではなく、根拠と併せた目安です）。`);
+}
+
+// Minimal, working starter snippet per language (used when no model is installed).
+function starterCode(lang: string, req: string): string {
+  const t = (req || 'GODAgent').replace(/[`$]/g, '');
+  switch (lang) {
+    case 'html': return `<!doctype html>\n<html lang="ja"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<style>body{font-family:sans-serif;margin:24px;line-height:1.7}</style></head>\n<body>\n  <h1>${t}</h1>\n  <p>GODAgent コードスタジオで作成しました。</p>\n  <button onclick="alert('動きました')">クリック</button>\n</body></html>`;
+    case 'javascript': return `// ${t}\nfunction main() {\n  console.log("Hello from GODAgent");\n}\nmain();`;
+    case 'typescript': return `// ${t}\nfunction greet(name: string): string {\n  return \`Hello, \${name}\`;\n}\nconsole.log(greet("社長"));`;
+    case 'python': return `# ${t}\ndef main():\n    print("Hello from GODAgent")\n\nif __name__ == "__main__":\n    main()`;
+    case 'java': return `// ${t}\npublic class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello from GODAgent");\n  }\n}`;
+    case 'kotlin': return `// ${t}\nfun main() {\n  println("Hello from GODAgent")\n}`;
+    case 'c': return `/* ${t} */\n#include <stdio.h>\nint main(void){ printf("Hello from GODAgent\\n"); return 0; }`;
+    case 'cpp': return `// ${t}\n#include <iostream>\nint main(){ std::cout << "Hello from GODAgent\\n"; return 0; }`;
+    case 'csharp': return `// ${t}\nusing System;\nclass Program { static void Main(){ Console.WriteLine("Hello from GODAgent"); } }`;
+    case 'rust': return `// ${t}\nfn main() {\n    println!("Hello from GODAgent");\n}`;
+    case 'sql': return `-- ${t}\nSELECT 'Hello from GODAgent' AS message;`;
+    case 'glsl': return `// ${t}\nprecision mediump float;\nvoid main(){ gl_FragColor = vec4(0.49,0.36,1.0,1.0); }`;
+    default: return `// ${t}\n// GODAgent code studio`;
+  }
 }
 
 function meetingLine(kind: string, role: string) {
@@ -578,18 +610,23 @@ async function produce(p: any, members: any[], set: (s: string, n: number) => vo
       if (r.includes('キャラクター') || r.includes('マップ')) { gpost(p.groupId, members[i].id, { type: 'image', img: { dataUrl: imgUrl(r + ' ' + p.request), caption: `${r}：自動生成` } }); markDone(i, '素材を生成'); }
       else markDone(i, '担当分を反映');
     }
-    const genre = pickGenre(p.request);
-    const spec = { title: p.title || 'GODAgent Game', theme: p.request.slice(0, 40), color: TEAMS.find((t) => t.kind === 'game')!.color, genre };
+    const idea = await modelSay(`ゲームのコンセプトを日本語一文で提案してください：${p.request}`, 60);
+    if (idea) await gstream(p.groupId, leader.id, `アイデア（AIモデル）：${idea}`);
+    const genre = pickGenre(idea || p.request);
+    const spec = { title: p.title || 'GODAgent Game', theme: (idea || p.request).slice(0, 40), color: TEAMS.find((t) => t.kind === 'game')!.color, genre };
     const html = makeGame(spec);
     p.deliverables = [{ kind: 'game', title: spec.title, genre, html }];
     gpost(p.groupId, leader.id, { type: 'game', game: { title: spec.title, genre, html } });
   } else if (p.teamKind === 'image') {
     const kinds = ['キービジュアル', 'キャラクター', '背景', 'サムネイル'];
+    const prompt = await modelSay(`画像生成プロンプトを日本語一文で提案してください：${p.request}`, 60);
+    if (prompt) await gstream(p.groupId, leader.id, `画像プロンプト（AIモデル）：${prompt}`);
+    const seed = prompt || p.request;
     p.deliverables = [];
     for (let i = 0; i < members.length; i++) {
       if (stopped(p)) return; markWorking(i);
       if (members[i].role.includes('生成') || members[i].role.includes('合成') || members[i].role.includes('構図')) {
-        const k = kinds[i % kinds.length]; const url = imgUrl(k + ' ' + p.request);
+        const k = kinds[i % kinds.length]; const url = imgUrl(k + ' ' + seed);
         p.deliverables.push({ kind: 'image', caption: k, dataUrl: url });
         gpost(p.groupId, members[i].id, { type: 'image', img: { dataUrl: url, caption: `${k}（自動生成）` } });
       }
@@ -597,7 +634,9 @@ async function produce(p: any, members: any[], set: (s: string, n: number) => vo
     }
   } else if (p.teamKind === 'videomake') {
     for (let i = 0; i < members.length - 1; i++) { if (stopped(p)) return; markWorking(i); await pace(250); markDone(i, '完了'); }
-    const scenes = scriptScenes(p.request);
+    const scriptLine = await modelSay(`動画の見どころ・導入を日本語一文で：${p.request}`, 60);
+    if (scriptLine) await gstream(p.groupId, leader.id, `台本の種（AIモデル）：${scriptLine}`);
+    const scenes = scriptScenes(scriptLine || p.request);
     gpost(p.groupId, leader.id, { type: 'text', text: '台本（絵コンテ）\n' + scenes.map((s, i) => `${i + 1}. ${s}`).join('\n') });
     const res = await recordVideo({ title: p.title || 'GODAgent', scenes, color: TEAMS.find((t) => t.kind === 'videomake')!.color });
     if (res.dataUrl) { p.deliverables = [{ kind: 'video', caption: p.title, dataUrl: res.dataUrl, mime: res.mime }]; gpost(p.groupId, leader.id, { type: 'video', video: { title: p.title, dataUrl: res.dataUrl, mime: res.mime } }); }
@@ -606,6 +645,8 @@ async function produce(p: any, members: any[], set: (s: string, n: number) => vo
   } else if (p.teamKind === 'videoedit') {
     for (let i = 0; i < members.length; i++) { if (stopped(p)) return; markWorking(i); await pace(150); markDone(i, '計画作成'); }
     const hasVideo = (p.inputFiles || []).some((f: any) => (f.mime || '').startsWith('video'));
+    const editIdea = await modelSay(`動画編集の方針を日本語一文で：${p.request}`, 60);
+    if (editIdea) await gstream(p.groupId, leader.id, `編集の方針（AIモデル）：${editIdea}`);
     const plan = editPlan(p.request);
     gpost(p.groupId, leader.id, { type: 'text', text: '編集プラン\n' + plan.map((s, i) => `${i + 1}. ${s}`).join('\n') });
     gpost(p.groupId, leader.id, { type: 'error', text: '正直なご報告：' + (hasVideo ? '素材を受領しましたが、' : '') + 'プロ向けの本格的な映像編集（カット・合成・書き出し等）は、端末ブラウザ内での実行能力の制約により本アプリ単体では実処理まで行えません。上記は実行可能な編集プランです。実処理が必要な場合はエンコード環境が必要です。' });
@@ -655,9 +696,19 @@ export const api = {
   },
   async think(question: string, level: number) { const r = startThink(question, Number(level) || 5); return r ? { ok: true, groupId: r.groupId } : { ok: false }; },
   async thinkGroupId() { return teamGroupId('think') || null; },
+  async genCode(lang: string, request: string) {
+    if (lang === 'html' && /ゲーム|game|遊|シュー|弾|パズル|avoid|よけ|回避|collect|集め|ジャンプ|run/i.test(request)) {
+      const genre = pickGenre(request);
+      const html = makeGame({ title: request.slice(0, 24) || 'Game', theme: request.slice(0, 40), color: '#7C5CFF', genre });
+      return { code: html, modelUsed: false, kind: 'game' };
+    }
+    const m = await modelSay(`次の要望に対する${lang}のコードのみを出力してください（説明文は不要）：${request}`, 240);
+    if (m && m.length > 24) return { code: m, modelUsed: true };
+    return { code: starterCode(lang, request), modelUsed: false };
+  },
   async createProject(teamKind: string, request: string) { const id = startProject(teamKind as any, request); return { id }; },
   async reviseProject(id: string, note: string) { const p = S.projects[id]; if (!p) return { ok: false }; gpost(p.groupId, p.tasks?.[0]?.memberId || S.bots[p.groupId].members[0], { type: 'text', text: `社長、修正指示を承りました：「${note.slice(0, 80)}」。再制作いたします。` }); startProject(p.teamKind, p.request + '（修正指示：' + note + '）', id); return { ok: true }; },
-  async approveProject(id: string) { const p = S.projects[id]; if (!p) return { ok: false }; p.status = 'approved'; saveProj(p); gpost(p.groupId, S.bots[p.groupId].members[0], { type: 'text', text: '社長、ご承認ありがとうございます。正式に完成といたします。' }); return { ok: true }; },
+  async approveProject(id: string) { const p = S.projects[id]; if (!p) return { ok: false }; p.status = 'approved'; saveProj(p); awardExp(S.bots[p.groupId]?.members || [], 40); gpost(p.groupId, S.bots[p.groupId].members[0], { type: 'text', text: '社長、ご承認ありがとうございます。正式に完成といたします。チーム全員の経験値が上がりました。' }); return { ok: true }; },
   async stopProject(id: string) { const p = S.projects[id]; if (!p) return { ok: false }; p.status = 'stopped'; saveProj(p); gpost(p.groupId, S.bots[p.groupId].members[0], { type: 'text', text: '社長、作業を停止いたしました。' }); return { ok: true }; },
   async approve(id: string, effect: string, always = false) { return { ok: pendingResolve(id, { effect, always }) }; },
   async answer(id: string, value: string) { return { ok: pendingResolve(id, { value }) }; },
